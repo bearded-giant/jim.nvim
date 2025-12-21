@@ -61,7 +61,7 @@ local function get_issue_icon(node)
   if type == "Bug" then
     return "", "JiraIconBug"
   elseif type == "Story" then
-    return "󱜿", "JiraIconStory"
+    return "", "JiraIconStory"
   elseif type == "Task" then
     return "", "JiraIconTask"
   elseif type == "Sub-task" or type == "Subtask" then
@@ -98,7 +98,7 @@ local function render_issue_line(node, depth, row)
   if points == nil or points == vim.NIL then
     points = "?"
   end
-  local pts = is_root and string.format("  %s", points) or ""
+  local pts = is_root and string.format(" 󰫢 %s", points) or ""
 
   local status = truncate(node.status or "Unknown", MAX.STATUS)
 
