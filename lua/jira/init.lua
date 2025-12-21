@@ -27,24 +27,34 @@ M.open = function()
   local api_client = require("jira.jira-api.api")
   local project_statuses, st_err = api_client.get_project_statuses(state.config.jira.project)
   if not st_err and project_statuses then
+    local function get_theme_color(groups, attr)
+      for _, g in ipairs(groups) do
+        local hl = vim.api.nvim_get_hl(0, { name = g, link = false })
+        if hl and hl[attr] then return hl[attr] end
+      end
+      return nil
+    end
+
     local color_map = {
-      ["blue-gray"] = "#89b4fa",
-      ["medium-gray"] = "#9399b2",
-      ["green"] = "#a6e3a1",
-      ["yellow"] = "#f9e2af",
-      ["red"] = "#f38ba8",
-      ["brown"] = "#ef9f76",
+      ["green"] = get_theme_color({ "DiagnosticOk", "String", "DiffAdd" }, "fg") or "#a6e3a1",
+      ["blue-gray"] = get_theme_color({ "DiagnosticInfo", "Function", "DiffChange" }, "fg") or "#89b4fa",
+      ["medium-gray"] = get_theme_color({ "DiagnosticHint", "Comment", "NonText" }, "fg") or "#9399b2",
+      ["yellow"] = get_theme_color({ "DiagnosticWarn", "WarningMsg", "Todo" }, "fg") or "#f9e2af",
+      ["red"] = get_theme_color({ "DiagnosticError", "ErrorMsg", "DiffDelete" }, "fg") or "#f38ba8",
+      ["brown"] = get_theme_color({ "Special", "Constant" }, "fg") or "#ef9f76",
     }
+
+    local bg_base = get_theme_color({ "Normal" }, "bg") or "#1e1e2e"
 
     for _, itype in ipairs(project_statuses) do
       for _, st in ipairs(itype.statuses or {}) do
         local hl_name = "JiraStatus_" .. st.name:gsub("%s+", "_")
         local color_name = st.statusCategory and st.statusCategory.colorName or "medium-gray"
-        local hex = color_map[color_name] or "#9399b2"
+        local color = color_map[color_name] or color_map["medium-gray"]
 
         vim.api.nvim_set_hl(0, hl_name, {
-          fg = "#1e1e2e", -- Dark background for status label
-          bg = hex,
+          fg = bg_base,
+          bg = color,
           bold = true,
         })
         state.status_hls[st.name] = hl_name
