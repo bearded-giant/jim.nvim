@@ -68,6 +68,7 @@ function M.get_active_sprint_issues()
       local parent_key = safe_get(fields, "parent", "key")
       local priority = safe_get(fields, "priority", "name") or "None"
       local assignee = safe_get(fields, "assignee", "displayName") or "Unassigned"
+      local issue_type = safe_get(fields, "issuetype", "name") or "Task"
 
       local time_spent = nil
       local time_estimate = nil
@@ -89,6 +90,7 @@ function M.get_active_sprint_issues()
         assignee = assignee,
         time_spent = time_spent,
         time_estimate = time_estimate,
+        type = issue_type,
       })
     end
 

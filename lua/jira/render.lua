@@ -65,24 +65,26 @@ end
 -- Helpers
 -- ---------------------------------------------
 local function get_issue_icon(node)
-  if not devicons then
-    return "", "Normal"
+  local type = node.type or ""
+  if type == "Bug" then
+    return "", "JiraIconBug"
+  elseif type == "Story" then
+    return "󱜿", "JiraIconStory"
+  elseif type == "Task" then
+    return "", "JiraIconTask"
+  elseif type == "Sub-task" or type == "Subtask" then
+    return "󰙅", "JiraIconSubTask"
+  elseif type == "Sub-Test" or type == "Sub Test Execution" then
+    return "󰙨", "JiraIconTest"
+  elseif type == "Sub Design" then
+    return "󰟶", "JiraIconDesign"
+  elseif type == "Sub Overhead" then
+    return "󱖫", "JiraIconOverhead"
+  elseif type == "Sub-Imp" then
+    return "", "JiraIconImp"
   end
 
-  local name, ext
-
-  if node.type == "Bug" then
-    name, ext = "bug.ts", "ts"
-  elseif node.type == "Story" then
-    name, ext = "story.lua", "lua"
-  elseif node.type == "Task" then
-    name, ext = "task.json", "json"
-  else
-    name, ext = "issue.txt", "txt"
-  end
-
-  local icon, hl = devicons.get_icon(name, ext, { default = true })
-  return icon or "", hl or "Normal"
+  return "●", "JiraIconStory"
 end
 
 -- ---------------------------------------------

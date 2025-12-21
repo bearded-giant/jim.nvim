@@ -104,6 +104,15 @@ M.open = function()
     bold = true,
   })
 
+  vim.api.nvim_set_hl(0, "JiraIconBug", { fg = "#f38ba8" }) -- Red
+  vim.api.nvim_set_hl(0, "JiraIconStory", { fg = "#a6e3a1" }) -- Green
+  vim.api.nvim_set_hl(0, "JiraIconTask", { fg = "#89b4fa" }) -- Blue
+  vim.api.nvim_set_hl(0, "JiraIconSubTask", { fg = "#94e2d5" }) -- Teal
+  vim.api.nvim_set_hl(0, "JiraIconTest", { fg = "#fab387" }) -- Peach
+  vim.api.nvim_set_hl(0, "JiraIconDesign", { fg = "#cba6f7" }) -- Mauve
+  vim.api.nvim_set_hl(0, "JiraIconOverhead", { fg = "#9399b2" }) -- Overlay2
+  vim.api.nvim_set_hl(0, "JiraIconImp", { fg = "#89dceb" }) -- Sky
+
   api.nvim_set_current_win(state.win)
 
   local tree = util.build_issue_tree(issues)

@@ -71,7 +71,7 @@ end
 
 -- Search for issues using JQL
 function M.search_issues(jql, page_token, max_results, fields)
-  fields = fields or { "summary", "status", "parent", "priority", "assignee", "timespent", "timeestimate" }
+  fields = fields or { "summary", "status", "parent", "priority", "assignee", "timespent", "timeestimate", "issuetype" }
 
   local data = {
     jql = jql,
