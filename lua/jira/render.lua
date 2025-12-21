@@ -4,6 +4,7 @@ local api = vim.api
 local MAX = {
   TITLE = 60,
   ASSIGNEE = 20,
+  TIME = 15,
   STATUS = 14,
 }
 
@@ -40,14 +41,14 @@ end
 local function render_progress_bar(spent, estimate, width)
   local total = math.max(estimate, spent)
   if total <= 0 then
-    return string.rep("•", width), 0
+    return string.rep("┃", width), 0
   end
 
   local ratio = spent / total
   local filled_len = math.floor(ratio * width)
   filled_len = math.min(width, math.max(0, filled_len))
 
-  local bar = string.rep("•", filled_len) .. string.rep("•", width - filled_len)
+  local bar = string.rep("┃", filled_len) .. string.rep("┃", width - filled_len)
   return bar, filled_len
 end
 
@@ -102,7 +103,6 @@ local function render_issue_line(node, depth, row)
   local points = node.points or 2
   local pts = is_root and string.format("  %d", points) or ""
 
-  local assignee = truncate(node.assignee or "Unassigned", MAX.ASSIGNEE)
   local status = truncate(node.status or "Unknown", MAX.STATUS)
 
   local highlights = {}
@@ -123,24 +123,39 @@ local function render_issue_line(node, depth, row)
   add_hl(highlights, col, pts, "JiraStoryPoint")
 
   -- RIGHT -------------------------------------------------
-  local display_right
+  local col1_str = "" -- Time Info
+  local col2_str = "" -- Assignee or Progress Bar
   local bar_filled_len = 0
-  local bar_width = 10
+  local bar_width = 20
 
   if is_root then
     local spent, estimate = get_totals(node)
     local bar, filled = render_progress_bar(spent, estimate, bar_width)
     bar_filled_len = filled
-    display_right = bar .. string.format(" %gh/%gh", spent, math.max(estimate, spent))
+    col1_str = string.format("󱎫 %gh/%gh", spent, math.max(estimate, spent))
+    col2_str = bar
   else
-    local ass = truncate(node.assignee or "Unassigned", MAX.ASSIGNEE)
-    display_right = " " .. ass
+    local spent = node.time_spent or 0
+    local estimate = node.time_estimate or 0
+    local remaining = math.max(0, estimate - spent)
+    if estimate > 0 then
+      if remaining > 0 then
+        col1_str = string.format("󱎫 %gh left", remaining)
+      else
+        col1_str = "󱎫 done"
+      end
+    end
+
+    local ass = truncate(node.assignee or "Unassigned", MAX.ASSIGNEE - 2)
+    col2_str = "󱠂 " .. ass
   end
 
-  local assignee_pad = string.rep(" ", MAX.ASSIGNEE - vim.fn.strdisplaywidth(display_right))
+  local col1_pad = string.rep(" ", MAX.TIME - vim.fn.strdisplaywidth(col1_str))
+  local col2_pad = string.rep(" ", MAX.ASSIGNEE - vim.fn.strdisplaywidth(col2_str))
   local status_pad = string.rep(" ", MAX.STATUS - vim.fn.strdisplaywidth(status))
   local status_str = " " .. status .. status_pad .. " "
-  local right_part = string.format("%s%s  %s", display_right, assignee_pad, status_str)
+
+  local right_part = string.format("%s%s  %s%s  %s", col1_str, col1_pad, col2_str, col2_pad, status_str)
 
   local total_width = api.nvim_win_get_width(state.win or 0)
   local left_width = vim.fn.strdisplaywidth(left)
@@ -148,20 +163,28 @@ local function render_issue_line(node, depth, row)
 
   local full_line = left .. padding .. right_part
 
-  local right_col_assignee = #left + #padding
-  local right_col_status = right_col_assignee + #display_right + #assignee_pad + 2
+  local right_col_start = #left + #padding
+  
+  -- Highlight Column 1 (Time Info)
+  if col1_str ~= "" then
+    add_hl(highlights, right_col_start, col1_str, "Comment")
+  end
 
+  -- Highlight Column 2 (Assignee or Progress Bar)
+  local right_col2_start = right_col_start + #col1_str + #col1_pad + 2
   if is_root then
     local filled_bytes = bar_filled_len * 3
     local empty_bytes = (bar_width - bar_filled_len) * 3
-    add_hl(highlights, right_col_assignee, string.sub(display_right, 1, filled_bytes), "exgreen")
-    add_hl(highlights, right_col_assignee + filled_bytes, string.sub(display_right, filled_bytes + 1, filled_bytes + empty_bytes), "linenr")
-    add_hl(highlights, right_col_assignee + filled_bytes + empty_bytes, string.sub(display_right, filled_bytes + empty_bytes + 1), "Comment")
+    add_hl(highlights, right_col2_start, string.sub(col2_str, 1, filled_bytes), "exgreen")
+    add_hl(highlights, right_col2_start + filled_bytes, string.sub(col2_str, filled_bytes + 1, filled_bytes + empty_bytes), "linenr")
   else
     local hl = (node.assignee == nil or node.assignee == "Unassigned") and "JiraAssigneeUnassigned" or "JiraAssignee"
-    add_hl(highlights, right_col_assignee, display_right, hl)
+    add_hl(highlights, right_col2_start, col2_str, hl)
   end
-  add_hl(highlights, right_col_status, status_str, is_root and "JiraStatusRoot" or "JiraStatus")
+
+  -- Highlight Status
+  local right_status_start = right_col2_start + #col2_str + #col2_pad + 2
+  add_hl(highlights, right_status_start, status_str, is_root and "JiraStatusRoot" or "JiraStatus")
 
   api.nvim_buf_set_lines(state.buf, row, row + 1, false, { full_line })
 
