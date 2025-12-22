@@ -2,6 +2,9 @@
 
 A Neovim plugin for managing JIRA tasks with a beautiful UI
 
+<img width="3840" height="2386" alt="image" src="https://github.com/user-attachments/assets/dc301216-7067-4a00-b43f-d1d00d1127b6" />
+
+
 ## Features (AI generated)
 
 - 📋 View active sprint tasks
@@ -27,3 +30,7 @@ A Neovim plugin for managing JIRA tasks with a beautiful UI
 - [ ] Backlog
 - [ ] Update UI when terminal size change
 ....
+
+
+## Thanks
+Big thanks for `gemini` CLI free tier
