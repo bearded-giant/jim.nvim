@@ -100,6 +100,7 @@ require("jira").setup({
     create_story = "c",
     close_issue = "d",
     toggle_resolved = "x",
+    yank_key = "y",
     refresh = "r",
     close = { "q", "<Esc>" },
   },
@@ -169,6 +170,7 @@ All keymaps are configurable via `setup()`. Defaults shown below.
 | `x` | Toggle show/hide resolved issues |
 | `K` | Show issue details (fetches full data) |
 | `m` | Read full task as markdown |
+| `y` | Copy issue key to clipboard |
 | `gx` | Open issue in browser |
 
 ## Views

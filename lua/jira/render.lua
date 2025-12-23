@@ -338,6 +338,7 @@ function M.render_help(view)
     { k = format_keys(km.details), d = "Show Issue Details (Popup)" },
     { k = format_keys(km.read_task), d = "Read Task as Markdown" },
     { k = format_keys(km.open_browser), d = "Open Task in Browser" },
+    { k = format_keys(km.yank_key), d = "Copy issue key to clipboard" },
     { k = format_keys(km.refresh), d = "Refresh current view" },
     { k = format_keys(km.help), d = "Show this Help" },
     { k = format_keys(km.close), d = "Close Board" },

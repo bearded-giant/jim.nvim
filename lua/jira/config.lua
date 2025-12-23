@@ -43,6 +43,7 @@ M.defaults = {
     create_story = "c",
     close_issue = "d",
     toggle_resolved = "x",
+    yank_key = "y",
     refresh = "r",
     close = { "q", "<Esc>" },
   },

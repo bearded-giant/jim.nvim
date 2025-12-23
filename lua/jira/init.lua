@@ -163,6 +163,7 @@ M.setup_keymaps = function()
   set_keymap(km.details, function() require("jira").show_issue_details() end, opts)
   set_keymap(km.read_task, function() require("jira").read_task() end, opts)
   set_keymap(km.open_browser, function() require("jira").open_in_browser() end, opts)
+  set_keymap(km.yank_key, function() require("jira").yank_key() end, opts)
 
   -- Issue actions
   set_keymap(km.change_status, function() require("jira").change_status() end, opts)
@@ -421,6 +422,17 @@ M.open_in_browser = function()
 
   local url = base .. "browse/" .. node.key
   vim.ui.open(url)
+end
+
+M.yank_key = function()
+  local cursor = api.nvim_win_get_cursor(state.win)
+  local row = cursor[1] - 1
+  local node = state.line_map[row]
+  if not node or not node.key then return end
+
+  vim.fn.setreg("+", node.key)
+  vim.fn.setreg('"', node.key)
+  vim.notify("Copied: " .. node.key, vim.log.levels.INFO)
 end
 
 -- Helper to refresh current view after updates
