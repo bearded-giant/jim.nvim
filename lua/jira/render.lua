@@ -328,6 +328,7 @@ function M.render_help(view)
     { k = format_keys(km.sprint), d = "Switch to Active Sprint" },
     { k = format_keys(km.backlog), d = "Switch to Backlog" },
     { k = format_keys(km.edit_projects), d = "Edit saved projects" },
+    { k = format_keys(km.edit_issue), d = "Edit issue (summary/description/status)" },
     { k = format_keys(km.filter), d = "Filter by summary" },
     { k = format_keys(km.clear_filter), d = "Clear filter" },
     { k = format_keys(km.change_status), d = "Change issue status" },

@@ -88,6 +88,39 @@ function M.setup_static_highlights()
   vim.api.nvim_set_hl(0, "JiraIconImp", { fg = "#89dceb" })      -- Sky
 end
 
+local function get_window_dimensions()
+  local width = math.min(math.floor(vim.o.columns * 0.9), 180)
+  local height = math.min(math.floor(vim.o.lines * 0.85), 50)
+  local col = math.floor((vim.o.columns - width) / 2)
+  local row = math.floor((vim.o.lines - height) / 2) - 1
+  return width, height, col, row
+end
+
+local function resize_windows()
+  if not state.win or not api.nvim_win_is_valid(state.win) then return end
+  if not state.dim_win or not api.nvim_win_is_valid(state.dim_win) then return end
+
+  local width, height, col, row = get_window_dimensions()
+
+  api.nvim_win_set_config(state.dim_win, {
+    relative = "editor",
+    width = vim.o.columns,
+    height = vim.o.lines,
+    row = 0,
+    col = 0,
+  })
+
+  api.nvim_win_set_config(state.win, {
+    relative = "editor",
+    width = width,
+    height = height,
+    col = col,
+    row = row,
+  })
+end
+
+local resize_autocmd_id = nil
+
 function M.create_window()
   -- Backdrop
   local dim_buf = api.nvim_create_buf(false, true)
@@ -108,19 +141,17 @@ function M.create_window()
   state.buf = api.nvim_create_buf(false, true)
   api.nvim_buf_set_option(state.buf, "bufhidden", "wipe")
 
-  local height = 42
-  local width = 160
+  local width, height, col, row = get_window_dimensions()
 
   state.win = api.nvim_open_win(state.buf, true, {
     width = width,
     height = height,
-    col = (vim.o.columns - width) / 2,
-    row = (vim.o.lines - height) / 2 - 1,
-
+    col = col,
+    row = row,
     relative = 'editor',
     style = "minimal",
     border = { " ", " ", " ", " ", " ", " ", " ", " " },
-    title = { { "  Jira Board ", "StatusLineTerm" } },
+    title = { { "  Jira Board ", "StatusLineTerm" } },
     title_pos = "center",
     zindex = 45,
   })
@@ -128,12 +159,22 @@ function M.create_window()
   api.nvim_win_set_hl_ns(state.win, state.ns)
   api.nvim_win_set_option(state.win, "cursorline", true)
 
+  resize_autocmd_id = api.nvim_create_autocmd("VimResized", {
+    callback = function()
+      resize_windows()
+    end,
+  })
+
   api.nvim_create_autocmd("BufWipeout", {
     buffer = state.buf,
     callback = function()
       if state.dim_win and api.nvim_win_is_valid(state.dim_win) then
         api.nvim_win_close(state.dim_win, true)
         state.dim_win = nil
+      end
+      if resize_autocmd_id then
+        api.nvim_del_autocmd(resize_autocmd_id)
+        resize_autocmd_id = nil
       end
     end,
   })
@@ -193,53 +234,134 @@ function M.stop_loading()
   end
 end
 
-function M.show_issue_details_popup(node)
+local function format_age(iso_date)
+  if not iso_date then return "" end
+  local year, month, day, hour, min, sec = iso_date:match("(%d+)-(%d+)-(%d+)T(%d+):(%d+):(%d+)")
+  if not year then return iso_date end
+  local created = os.time({ year = tonumber(year), month = tonumber(month), day = tonumber(day), hour = tonumber(hour), min = tonumber(min), sec = tonumber(sec) })
+  local now = os.time()
+  local diff = now - created
+  if diff < 60 then return "just now"
+  elseif diff < 3600 then return math.floor(diff / 60) .. "m ago"
+  elseif diff < 86400 then return math.floor(diff / 3600) .. "h ago"
+  elseif diff < 604800 then return math.floor(diff / 86400) .. "d ago"
+  elseif diff < 2592000 then return math.floor(diff / 604800) .. "w ago"
+  else return math.floor(diff / 2592000) .. "mo ago"
+  end
+end
+
+local function wrap_text(text, width)
+  local lines = {}
+  for line in (text .. "\n"):gmatch("(.-)\n") do
+    if #line <= width then
+      table.insert(lines, line)
+    else
+      local remaining = line
+      while #remaining > width do
+        local break_at = width
+        local space = remaining:sub(1, width):match(".*()%s")
+        if space and space > width * 0.5 then break_at = space end
+        table.insert(lines, remaining:sub(1, break_at):gsub("%s+$", ""))
+        remaining = remaining:sub(break_at + 1):gsub("^%s+", "")
+      end
+      if #remaining > 0 then table.insert(lines, remaining) end
+    end
+  end
+  return lines
+end
+
+function M.show_issue_details_popup(issue)
   local util = require("jira.util")
-  local lines = {
-    " " .. node.key .. ": " .. (node.summary or ""),
-    " " .. string.rep("━", math.min(60, #node.key + #(node.summary or "") + 2)),
-    string.format(" Status:   %s", node.status or "Unknown"),
-    string.format(" Priority: %s", node.priority or "None"),
-    string.format(" Assignee: %s", node.assignee or "Unassigned"),
-  }
-  
+  local fields = issue.fields or {}
+  local max_width = 80
+
+  local summary = fields.summary or ""
+  local status = fields.status and fields.status.name or "Unknown"
+  local assignee = fields.assignee and fields.assignee.displayName or "Unassigned"
+  local created = fields.created
+  local sprint_name = nil
+  if fields.sprint then
+    sprint_name = fields.sprint.name
+  elseif fields.customfield_10020 and type(fields.customfield_10020) == "table" then
+    local sprints = fields.customfield_10020
+    if #sprints > 0 and sprints[#sprints].name then
+      sprint_name = sprints[#sprints].name
+    end
+  end
+
+  local lines = {}
   local hls = {}
-  -- Header highlight
-  table.insert(hls, { row = 0, col = 1, end_col = 1 + #node.key, hl = "Title" })
-  table.insert(hls, { row = 1, col = 0, end_col = -1, hl = "Comment" })
 
-  local next_row = 2
+  -- Summary
+  table.insert(lines, " Summary:")
+  table.insert(hls, { row = #lines - 1, col = 1, end_col = 9, hl = "Label" })
+  table.insert(lines, " " .. string.rep("─", max_width - 2))
+  table.insert(hls, { row = #lines - 1, col = 0, end_col = -1, hl = "Comment" })
+  local summary_lines = wrap_text(summary, max_width - 2)
+  for _, sl in ipairs(summary_lines) do
+    table.insert(lines, " " .. sl)
+  end
+  table.insert(lines, "")
+
+  -- Description
+  table.insert(lines, " Description:")
+  table.insert(hls, { row = #lines - 1, col = 1, end_col = 13, hl = "Label" })
+  table.insert(lines, " " .. string.rep("─", max_width - 2))
+  table.insert(hls, { row = #lines - 1, col = 0, end_col = -1, hl = "Comment" })
+  if fields.description then
+    local desc_md = util.adf_to_markdown(fields.description)
+    if desc_md and desc_md ~= "" then
+      local desc_lines = wrap_text(desc_md, max_width - 2)
+      local max_desc_lines = 15
+      for i, dl in ipairs(desc_lines) do
+        if i > max_desc_lines then
+          table.insert(lines, " ...")
+          break
+        end
+        table.insert(lines, " " .. dl)
+      end
+    else
+      table.insert(lines, " (no description)")
+      table.insert(hls, { row = #lines - 1, col = 1, end_col = -1, hl = "Comment" })
+    end
+  else
+    table.insert(lines, " (no description)")
+    table.insert(hls, { row = #lines - 1, col = 1, end_col = -1, hl = "Comment" })
+  end
+  table.insert(lines, "")
+
+  -- Metadata section
+  table.insert(lines, " " .. string.rep("─", max_width - 2))
+  table.insert(hls, { row = #lines - 1, col = 0, end_col = -1, hl = "Comment" })
+
   -- Status
-  table.insert(hls, { row = next_row, col = 1, end_col = 10, hl = "Label" })
-  table.insert(hls, { row = next_row, col = 11, end_col = -1, hl = M.get_status_hl(node.status) })
-  next_row = next_row + 1
-  
-  -- Priority
-  table.insert(hls, { row = next_row, col = 1, end_col = 10, hl = "Label" })
-  table.insert(hls, { row = next_row, col = 11, end_col = -1, hl = "Special" })
-  next_row = next_row + 1
-  
-  -- Assignee
-  table.insert(hls, { row = next_row, col = 1, end_col = 10, hl = "Label" })
-  local ass_hl = (node.assignee == nil or node.assignee == "Unassigned") and "JiraAssigneeUnassigned" or "JiraAssignee"
-  table.insert(hls, { row = next_row, col = 11, end_col = -1, hl = ass_hl })
-  next_row = next_row + 1
+  local status_row = #lines
+  table.insert(lines, string.format(" Status:    %s", status))
+  table.insert(hls, { row = status_row, col = 1, end_col = 10, hl = "Label" })
+  table.insert(hls, { row = status_row, col = 12, end_col = -1, hl = M.get_status_hl(status) })
 
-  if node.story_points then
-    table.insert(lines, string.format(" Points:   %s", node.story_points))
-    table.insert(hls, { row = next_row, col = 1, end_col = 10, hl = "Label" })
-    table.insert(hls, { row = next_row, col = 11, end_col = -1, hl = "JiraStoryPoint" })
-    next_row = next_row + 1
+  -- Created
+  if created then
+    local created_row = #lines
+    local age = format_age(created)
+    local date_str = created:sub(1, 10)
+    table.insert(lines, string.format(" Created:   %s (%s)", date_str, age))
+    table.insert(hls, { row = created_row, col = 1, end_col = 10, hl = "Label" })
   end
-  
-  local spent = node.time_spent or 0
-  local estimate = node.time_estimate or 0
-  if spent > 0 or estimate > 0 then
-    table.insert(lines, string.format(" Time:     %s / %s", util.format_time(spent), util.format_time(estimate)))
-    table.insert(hls, { row = next_row, col = 1, end_col = 10, hl = "Label" })
-    table.insert(hls, { row = next_row, col = 11, end_col = -1, hl = "Number" })
-    next_row = next_row + 1
+
+  -- Sprint
+  if sprint_name then
+    local sprint_row = #lines
+    table.insert(lines, string.format(" Sprint:    %s", sprint_name))
+    table.insert(hls, { row = sprint_row, col = 1, end_col = 10, hl = "Label" })
   end
+
+  -- Assignee
+  local assignee_row = #lines
+  table.insert(lines, string.format(" Assignee:  %s", assignee))
+  table.insert(hls, { row = assignee_row, col = 1, end_col = 10, hl = "Label" })
+  local ass_hl = assignee == "Unassigned" and "JiraAssigneeUnassigned" or "JiraAssignee"
+  table.insert(hls, { row = assignee_row, col = 12, end_col = -1, hl = ass_hl })
 
   local buf = api.nvim_create_buf(false, true)
   api.nvim_buf_set_lines(buf, 0, -1, false, lines)
@@ -262,35 +384,45 @@ function M.show_issue_details_popup(node)
   for _, l in ipairs(lines) do
     width = math.max(width, vim.fn.strdisplaywidth(l))
   end
-  width = width + 2
-  local height = #lines
+  width = math.min(width + 2, max_width)
+  local height = math.min(#lines, 30)
 
-  local win = api.nvim_open_win(buf, false, {
-    relative = "cursor",
+  local win = api.nvim_open_win(buf, true, {
+    relative = "editor",
     width = width,
     height = height,
-    row = 1,
-    col = 0,
+    row = math.floor((vim.o.lines - height) / 2),
+    col = math.floor((vim.o.columns - width) / 2),
     style = "minimal",
     border = "rounded",
-    focusable = false,
+    title = " " .. issue.key .. " ",
+    title_pos = "center",
   })
 
-  api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI", "BufLeave" }, {
-    buffer = state.buf,
-    once = true,
+  api.nvim_buf_set_keymap(buf, "n", "q", "", {
     callback = function()
       if api.nvim_win_is_valid(win) then
         api.nvim_win_close(win, true)
       end
     end,
+    noremap = true,
+    silent = true,
+  })
+  api.nvim_buf_set_keymap(buf, "n", "<Esc>", "", {
+    callback = function()
+      if api.nvim_win_is_valid(win) then
+        api.nvim_win_close(win, true)
+      end
+    end,
+    noremap = true,
+    silent = true,
   })
 end
 
 function M.open_markdown_view(title, lines)
   local buf = api.nvim_create_buf(false, true)
   api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  
+
   api.nvim_buf_set_option(buf, "filetype", "markdown")
   api.nvim_buf_set_option(buf, "buftype", "nofile")
   api.nvim_buf_set_option(buf, "bufhidden", "wipe")
@@ -298,7 +430,7 @@ function M.open_markdown_view(title, lines)
 
   local width = math.floor(vim.o.columns * 0.8)
   local height = math.floor(vim.o.lines * 0.8)
-  
+
   local win = api.nvim_open_win(buf, true, {
     relative = "editor",
     width = width,
@@ -321,4 +453,3 @@ function M.open_markdown_view(title, lines)
 end
 
 return M
-

@@ -9,11 +9,12 @@ A Neovim plugin for viewing and managing Jira issues with an interactive TUI.
 - **Backlog View** - Browse backlog items not in active sprints
 - **Custom JQL** - Run arbitrary JQL queries
 - **Summary Filter** - Filter any view by issue summary text
-- **Status Transitions** - Change issue status via picker
-- **Create Stories** - Quick story creation with minimal input
+- **Status Transitions** - Change issue status via workflow-aware picker
+- **Edit Issues** - Update summary, append to description, change status
+- **Create Stories** - Story creation with summary, description, auto-assigned to you
 - **Close Issues** - One-keypress close to Done status
-- **Toggle Resolved** - Show/hide resolved issues
-- **Issue Details** - Popup with status, assignee, priority, time tracking
+- **Toggle Resolved** - Show/hide resolved issues (works in all views including JQL)
+- **Issue Details** - Popup with summary, description, status, created date, sprint, assignee
 - **Markdown View** - Read full issue description and acceptance criteria
 - **Browser Integration** - Open issues in your browser
 - **Persistent State** - Saved projects and preferences across sessions
@@ -89,6 +90,7 @@ require("jira").setup({
     backlog = "B",
     help = "H",
     edit_projects = "E",
+    edit_issue = "e",
     filter = "/",
     clear_filter = "<BS>",
     details = "K",
@@ -160,11 +162,12 @@ All keymaps are configurable via `setup()`. Defaults shown below.
 
 | Key | Action |
 |-----|--------|
-| `s` | Change issue status |
-| `c` | Create new story |
+| `e` | Edit issue (summary/description/status menu) |
+| `s` | Change issue status (workflow-aware) |
+| `c` | Create new story (prompts summary + description) |
 | `d` | Close issue (transition to Done) |
 | `x` | Toggle show/hide resolved issues |
-| `K` | Show issue details popup |
+| `K` | Show issue details (fetches full data) |
 | `m` | Read full task as markdown |
 | `gx` | Open issue in browser |
 
@@ -191,11 +194,44 @@ Shows issues not assigned to an active sprint and not in Done status. Same proje
 
 ### Custom JQL
 
-Press `J` to enter any JQL query. The query is executed against your configured projects.
+Press `J` to enter any JQL query. Queries are fully free-form and not restricted to configured projects. Your last query is saved and restored on next session. Examples:
+
+```
+assignee = currentUser() AND project = PROJ
+status = "In Progress" AND updated >= -7d
+labels = "urgent" ORDER BY priority DESC
+```
 
 ### Filtering
 
 Press `/` in any list view to filter by summary text. The filter uses Jira's `summary ~ "term"` JQL syntax. Active filters are displayed in the header. Press `Backspace` to clear the filter.
+
+### Issue Details
+
+Press `K` to open a details popup for the issue under cursor. The popup fetches full issue data and displays:
+
+- **Summary** - Full issue summary with word wrapping
+- **Description** - Rendered from Atlassian Document Format (truncated to 15 lines)
+- **Status** - Current status with color coding
+- **Created** - Date with relative age (e.g., "2025-12-15 (8d ago)")
+- **Sprint** - Current sprint name if assigned
+- **Assignee** - Assigned user or "Unassigned"
+
+Press `q` or `Esc` to close the popup.
+
+For the full description with acceptance criteria, use `m` to open the markdown view.
+
+### Editing Issues
+
+Press `e` to open the edit menu for the issue under cursor:
+
+- **Edit Summary** - Update the issue title (pre-filled with current summary)
+- **Append to Description** - Add text to the existing description
+- **Change Status** - Same as `s`, opens workflow-aware transition picker
+
+For direct status changes without the menu, use `s`.
+
+**Note:** Attachments and rich formatting require the browser (`gx`).
 
 ## Display
 
@@ -219,6 +255,7 @@ The plugin saves the following to `~/.local/share/nvim/jira_nvim.json`:
 
 - `my_issues_projects` - Your configured project keys for My Issues
 - `hide_resolved` - Whether to show/hide resolved issues
+- `last_jql` - Your last executed JQL query (restored on next session)
 
 ## License
 

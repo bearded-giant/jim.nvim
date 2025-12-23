@@ -33,6 +33,7 @@ M.defaults = {
     backlog = "B",
     help = "H",
     edit_projects = "E",
+    edit_issue = "e",
     filter = "/",
     clear_filter = "<BS>",
     details = "K",

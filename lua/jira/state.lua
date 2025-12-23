@@ -16,12 +16,14 @@ local state = {
   cached_projects = nil,
   hide_resolved = true,
   current_filter = nil,
+  current_user_account_id = nil,
 }
 
 function state.save()
   local data = {
     my_issues_projects = state.my_issues_projects,
     hide_resolved = state.hide_resolved,
+    last_jql = state.custom_jql,
   }
   local json = vim.json.encode(data)
   local file = io.open(data_path, "w")
@@ -42,6 +44,7 @@ function state.load()
       if data.hide_resolved ~= nil then
         state.hide_resolved = data.hide_resolved
       end
+      state.custom_jql = data.last_jql
     end
   end
 end

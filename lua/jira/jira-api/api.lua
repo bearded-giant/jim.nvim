@@ -166,15 +166,107 @@ function M.get_projects(callback)
   end)
 end
 
--- Create a new issue
-function M.create_issue(project_key, summary, issue_type, callback)
-  local data = {
-    fields = {
-      project = { key = project_key },
-      summary = summary,
-      issuetype = { name = issue_type or "Story" },
-    },
+-- Get current user info
+function M.get_myself(callback)
+  curl_request("GET", "/rest/api/3/myself", nil, callback)
+end
+
+-- Convert plain text to ADF format
+local function text_to_adf(text)
+  if not text or text == "" then
+    return nil
+  end
+
+  local paragraphs = {}
+  for line in (text .. "\n"):gmatch("(.-)\n") do
+    if line == "" then
+      table.insert(paragraphs, {
+        type = "paragraph",
+        content = {},
+      })
+    else
+      table.insert(paragraphs, {
+        type = "paragraph",
+        content = {
+          { type = "text", text = line },
+        },
+      })
+    end
+  end
+
+  return {
+    type = "doc",
+    version = 1,
+    content = paragraphs,
   }
+end
+
+-- Append text to existing ADF document
+function M.append_to_adf(existing_adf, text)
+  local new_paragraphs = {}
+  for line in (text .. "\n"):gmatch("(.-)\n") do
+    if line == "" then
+      table.insert(new_paragraphs, {
+        type = "paragraph",
+        content = {},
+      })
+    else
+      table.insert(new_paragraphs, {
+        type = "paragraph",
+        content = {
+          { type = "text", text = line },
+        },
+      })
+    end
+  end
+
+  if not existing_adf or not existing_adf.content then
+    return {
+      type = "doc",
+      version = 1,
+      content = new_paragraphs,
+    }
+  end
+
+  -- Append to existing
+  local combined = vim.deepcopy(existing_adf)
+  for _, p in ipairs(new_paragraphs) do
+    table.insert(combined.content, p)
+  end
+  return combined
+end
+
+-- Update an existing issue
+function M.update_issue(issue_key, fields, callback)
+  curl_request("PUT", "/rest/api/3/issue/" .. issue_key, { fields = fields }, function(result, err)
+    if err then
+      if callback then callback(nil, err) end
+      return
+    end
+    -- PUT returns 204 No Content on success (result may be empty)
+    if callback then callback(true, nil) end
+  end)
+end
+
+-- Create a new issue
+function M.create_issue(project_key, summary, issue_type, opts, callback)
+  opts = opts or {}
+
+  local fields = {
+    project = { key = project_key },
+    summary = summary,
+    issuetype = { name = issue_type or "Story" },
+  }
+
+  if opts.description and opts.description ~= "" then
+    fields.description = text_to_adf(opts.description)
+  end
+
+  if opts.assignee_account_id then
+    fields.assignee = { accountId = opts.assignee_account_id }
+  end
+
+  local data = { fields = fields }
 
   curl_request("POST", "/rest/api/3/issue", data, function(result, err)
     if err then

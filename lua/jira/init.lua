@@ -79,10 +79,15 @@ local function get_cache_key(project_key, view_name)
     end
     return key
   end
-  local key = project_key .. ":" .. view_name
   if view_name == "JQL" then
-    key = key .. ":" .. (state.custom_jql or "")
+    -- JQL queries are global, not project-specific
+    local key = "global:JQL:" .. (state.custom_jql or "")
+    if state.current_filter and state.current_filter ~= "" then
+      key = key .. ":filter:" .. state.current_filter
+    end
+    return key
   end
+  local key = (project_key or "unknown") .. ":" .. view_name
   if state.current_filter and state.current_filter ~= "" then
     key = key .. ":filter:" .. state.current_filter
   end
@@ -109,24 +114,27 @@ M.setup_keymaps = function()
 
   -- Tab switching
   local function pick_project_for_view(view_name)
-    -- If already have a project context, use it
-    if state.project_key and state.project_key ~= "" then
-      require("jira").load_view(state.project_key, view_name)
-      return
-    end
-    -- If we have saved projects, show picker
-    if #state.my_issues_projects > 0 then
-      if #state.my_issues_projects == 1 then
-        require("jira").load_view(state.my_issues_projects[1], view_name)
-      else
-        vim.ui.select(state.my_issues_projects, {
-          prompt = view_name .. " - Select project:",
-        }, function(choice)
-          if choice then
-            require("jira").load_view(choice, view_name)
+    -- If we have multiple saved projects, always show picker to allow switching
+    if #state.my_issues_projects > 1 then
+      local current = state.project_key
+      vim.ui.select(state.my_issues_projects, {
+        prompt = view_name .. " - Select project:",
+        format_item = function(item)
+          if item == current then
+            return item .. " (current)"
           end
-        end)
-      end
+          return item
+        end,
+      }, function(choice)
+        if choice then
+          require("jira").load_view(choice, view_name)
+        end
+      end)
+    elseif #state.my_issues_projects == 1 then
+      require("jira").load_view(state.my_issues_projects[1], view_name)
+    elseif state.project_key and state.project_key ~= "" then
+      -- No saved projects but have current context
+      require("jira").load_view(state.project_key, view_name)
     else
       -- No saved projects, prompt for input
       vim.ui.input({ prompt = "Project key for " .. view_name .. ": " }, function(input)
@@ -149,6 +157,7 @@ M.setup_keymaps = function()
   set_keymap(km.backlog, function() pick_project_for_view("Backlog") end, opts)
   set_keymap(km.help, function() require("jira").load_view(state.project_key, "Help") end, opts)
   set_keymap(km.edit_projects, function() require("jira").prompt_my_issues_projects() end, opts)
+  set_keymap(km.edit_issue, function() require("jira").edit_issue() end, opts)
   set_keymap(km.filter, function() require("jira").prompt_filter() end, opts)
   set_keymap(km.clear_filter, function() require("jira").clear_filter() end, opts)
   set_keymap(km.details, function() require("jira").show_issue_details() end, opts)
@@ -233,7 +242,10 @@ M.load_view = function(project_key, view_name)
         render.clear(state.buf)
         render.render_issue_tree(state.tree, state.current_view)
         if not cached_issues then
-          vim.notify("Loaded " .. view_name .. " for " .. project_key, vim.log.levels.INFO)
+          local msg = project_key
+            and ("Loaded " .. view_name .. " for " .. project_key)
+            or ("Loaded " .. view_name)
+          vim.notify(msg, vim.log.levels.INFO)
         end
       end
 
@@ -246,7 +258,10 @@ M.load_view = function(project_key, view_name)
     return
   end
 
-  ui.start_loading("Loading " .. view_name .. " for " .. project_key .. "...")
+  local loading_msg = project_key
+    and ("Loading " .. view_name .. " for " .. project_key .. "...")
+    or ("Loading " .. view_name .. "...")
+  ui.start_loading(loading_msg)
 
   local fetch_fn
   local filter = state.current_filter
@@ -255,7 +270,13 @@ M.load_view = function(project_key, view_name)
   elseif view_name == "Backlog" then
     fetch_fn = function(pk, cb) sprint.get_backlog_issues(pk, filter, cb) end
   elseif view_name == "JQL" then
-    fetch_fn = function(pk, cb) sprint.get_issues_by_jql(pk, state.custom_jql, cb) end
+    fetch_fn = function(pk, cb)
+      local jql = state.custom_jql
+      if state.hide_resolved and jql and not jql:lower():find("statuscategory") then
+        jql = "(" .. jql .. ") AND statusCategory != Done"
+      end
+      sprint.get_issues_by_jql(pk, jql, cb)
+    end
   end
 
   fetch_fn(project_key, function(issues, err)
@@ -276,6 +297,7 @@ M.prompt_jql = function()
   vim.ui.input({ prompt = "JQL: ", default = state.custom_jql or "" }, function(input)
     if not input or input == "" then return end
     state.custom_jql = input
+    state.save()
     M.load_view(state.project_key, "JQL")
   end)
 end
@@ -312,9 +334,20 @@ M.show_issue_details = function()
   local cursor = api.nvim_win_get_cursor(state.win)
   local row = cursor[1] - 1
   local node = state.line_map[row]
-  if not node then return end
+  if not node or not node.key then return end
 
-  ui.show_issue_details_popup(node)
+  ui.start_loading("Fetching details for " .. node.key .. "...")
+  local jira_api = require("jira.jira-api.api")
+  jira_api.get_issue(node.key, function(issue, err)
+    vim.schedule(function()
+      ui.stop_loading()
+      if err then
+        vim.notify("Error: " .. err, vim.log.levels.ERROR)
+        return
+      end
+      ui.show_issue_details_popup(issue)
+    end)
+  end)
 end
 
 M.read_task = function()
@@ -388,6 +421,100 @@ M.open_in_browser = function()
 
   local url = base .. "browse/" .. node.key
   vim.ui.open(url)
+end
+
+-- Helper to refresh current view after updates
+local function refresh_current_view()
+  local cache_key = get_cache_key(state.project_key, state.current_view)
+  state.cache[cache_key] = nil
+  if state.current_view == "My Issues" then
+    M.load_my_issues_view()
+  elseif state.current_view and state.project_key then
+    M.load_view(state.project_key, state.current_view)
+  end
+end
+
+M._edit_summary = function(node)
+  vim.ui.input({ prompt = "Summary: ", default = node.summary }, function(input)
+    if not input or input == "" or input == node.summary then return end
+
+    local jira_api = require("jira.jira-api.api")
+    ui.start_loading("Updating summary...")
+    jira_api.update_issue(node.key, { summary = input }, function(success, err)
+      vim.schedule(function()
+        ui.stop_loading()
+        if err then
+          vim.notify("Update failed: " .. err, vim.log.levels.ERROR)
+          return
+        end
+        vim.notify(node.key .. " summary updated", vim.log.levels.INFO)
+        refresh_current_view()
+      end)
+    end)
+  end)
+end
+
+M._append_description = function(node)
+  vim.ui.input({ prompt = "Append to description: " }, function(input)
+    if not input or input == "" then return end
+
+    local jira_api = require("jira.jira-api.api")
+    ui.start_loading("Fetching current description...")
+    jira_api.get_issue(node.key, function(issue, err)
+      if err then
+        vim.schedule(function()
+          ui.stop_loading()
+          vim.notify("Failed to fetch issue: " .. err, vim.log.levels.ERROR)
+        end)
+        return
+      end
+
+      vim.schedule(function()
+        local current_adf = issue.fields and issue.fields.description
+        local new_adf = jira_api.append_to_adf(current_adf, input)
+
+        jira_api.update_issue(node.key, { description = new_adf }, function(success, u_err)
+          vim.schedule(function()
+            ui.stop_loading()
+            if u_err then
+              vim.notify("Update failed: " .. u_err, vim.log.levels.ERROR)
+              return
+            end
+            vim.notify(node.key .. " description updated", vim.log.levels.INFO)
+            refresh_current_view()
+          end)
+        end)
+      end)
+    end)
+  end)
+end
+
+M.edit_issue = function()
+  local cursor = api.nvim_win_get_cursor(state.win)
+  local row = cursor[1] - 1
+  local node = state.line_map[row]
+  if not node or not node.key then
+    vim.notify("No issue under cursor", vim.log.levels.WARN)
+    return
+  end
+
+  vim.ui.select({
+    { key = "summary", label = "Edit Summary" },
+    { key = "description", label = "Append to Description" },
+    { key = "status", label = "Change Status" },
+  }, {
+    prompt = "Edit " .. node.key .. ":",
+    format_item = function(item) return item.label end,
+  }, function(choice)
+    if not choice then return end
+    if choice.key == "summary" then
+      M._edit_summary(node)
+    elseif choice.key == "description" then
+      M._append_description(node)
+    elseif choice.key == "status" then
+      M.change_status()
+    end
+  end)
 end
 
 M.change_status = function()
@@ -505,31 +632,58 @@ M.close_issue = function()
 end
 
 M._prompt_and_create_story = function(project_key)
-  vim.ui.input({ prompt = "Story summary: " }, function(summary)
+  vim.ui.input({ prompt = "Summary: " }, function(summary)
     if not summary or summary == "" then return end
 
-    local jira_api = require("jira.jira-api.api")
-    ui.start_loading("Creating story...")
+    vim.ui.input({ prompt = "Description (optional): " }, function(description)
+      local jira_api = require("jira.jira-api.api")
 
-    jira_api.create_issue(project_key, summary, "Story", function(result, err)
-      vim.schedule(function()
-        ui.stop_loading()
-        if err then
-          vim.notify("Failed to create: " .. err, vim.log.levels.ERROR)
-          return
-        end
-        vim.notify("Created " .. result.key .. ": " .. summary, vim.log.levels.INFO)
+      local function do_create(account_id)
+        ui.start_loading("Creating story...")
 
-        local cache_key = get_cache_key(state.project_key, state.current_view)
-        state.cache[cache_key] = nil
-        if state.current_view == "Backlog" then
-          M.load_view(state.project_key, state.current_view)
-        elseif state.current_view == "My Issues" then
-          local my_cache_key = get_cache_key(nil, "My Issues")
-          state.cache[my_cache_key] = nil
-          M.load_my_issues_view()
-        end
-      end)
+        local opts = {
+          description = description,
+          assignee_account_id = account_id,
+        }
+
+        jira_api.create_issue(project_key, summary, "Story", opts, function(result, err)
+          vim.schedule(function()
+            ui.stop_loading()
+            if err then
+              vim.notify("Failed to create: " .. err, vim.log.levels.ERROR)
+              return
+            end
+            vim.notify("Created " .. result.key .. ": " .. summary, vim.log.levels.INFO)
+
+            local cache_key = get_cache_key(state.project_key, state.current_view)
+            state.cache[cache_key] = nil
+            if state.current_view == "Backlog" then
+              M.load_view(state.project_key, state.current_view)
+            elseif state.current_view == "My Issues" then
+              local my_cache_key = get_cache_key(nil, "My Issues")
+              state.cache[my_cache_key] = nil
+              M.load_my_issues_view()
+            end
+          end)
+        end)
+      end
+
+      -- Get current user's account ID (cached)
+      if state.current_user_account_id then
+        do_create(state.current_user_account_id)
+      else
+        jira_api.get_myself(function(user, err)
+          vim.schedule(function()
+            if err or not user or not user.accountId then
+              vim.notify("Could not get current user, creating unassigned", vim.log.levels.WARN)
+              do_create(nil)
+              return
+            end
+            state.current_user_account_id = user.accountId
+            do_create(user.accountId)
+          end)
+        end)
+      end
     end)
   end)
 end
@@ -636,6 +790,8 @@ M.toggle_resolved = function()
   state.cache[cache_key] = nil
   if state.current_view == "My Issues" then
     M.load_my_issues_view()
+  elseif state.current_view == "JQL" then
+    M.load_view(nil, "JQL")
   elseif state.current_view and state.project_key then
     M.load_view(state.project_key, state.current_view)
   end

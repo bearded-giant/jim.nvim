@@ -25,7 +25,7 @@ end
 
 local function fetch_issues_recursive(project, jql, callback)
   local all_issues = {}
-  local p_config = config.get_project_config(project)
+  local p_config = config.get_project_config(project) -- handles nil gracefully
   local story_point_field = p_config.story_point_field
   local limit = config.options.jira.limit or 200
 
@@ -130,10 +130,10 @@ function M.get_backlog_issues(project, filter, callback)
   fetch_issues_recursive(project, jql, callback)
 end
 
--- Get issues by custom JQL
+-- Get issues by custom JQL (project is optional for raw JQL queries)
 function M.get_issues_by_jql(project, jql, callback)
-  if not project then
-    if callback then callback(nil, "Project Key is required") end
+  if not jql or jql == "" then
+    if callback then callback(nil, "JQL is required") end
     return
   end
 
