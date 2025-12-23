@@ -25,7 +25,7 @@ M.build_issue_tree = function(issues)
     ---@type JiraIssueNode
     local node = vim.tbl_extend("force", issue, {
       children = {},
-      expanded = true
+      expanded = false
     })
 
     key_to_issue[node.key] = node

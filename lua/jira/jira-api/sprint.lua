@@ -89,31 +89,43 @@ local function fetch_issues_recursive(project, jql, callback)
 end
 
 -- Get current active sprint issues
-function M.get_active_sprint_issues(project, callback)
+function M.get_active_sprint_issues(project, filter, callback)
   if not project then
     if callback then callback(nil, "Project Key is required") end
     return
   end
 
   local jql = string.format(
-    "project = '%s' AND sprint in openSprints() ORDER BY Rank ASC",
+    "project = '%s' AND sprint in openSprints()",
     project
   )
+
+  if filter and filter ~= "" then
+    jql = jql .. string.format(" AND summary ~ \"%s\"", filter)
+  end
+
+  jql = jql .. " ORDER BY Rank ASC"
 
   fetch_issues_recursive(project, jql, callback)
 end
 
 -- Get backlog issues
-function M.get_backlog_issues(project, callback)
+function M.get_backlog_issues(project, filter, callback)
   if not project then
     if callback then callback(nil, "Project Key is required") end
     return
   end
 
   local jql = string.format(
-    "project = '%s' AND (sprint is EMPTY OR sprint not in openSprints()) AND statusCategory != Done ORDER BY Rank ASC",
+    "project = '%s' AND (sprint is EMPTY OR sprint not in openSprints()) AND statusCategory != Done",
     project
   )
+
+  if filter and filter ~= "" then
+    jql = jql .. string.format(" AND summary ~ \"%s\"", filter)
+  end
+
+  jql = jql .. " ORDER BY Rank ASC"
 
   fetch_issues_recursive(project, jql, callback)
 end

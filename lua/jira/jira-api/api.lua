@@ -155,6 +155,17 @@ function M.get_project_statuses(project, callback)
   curl_request("GET", "/rest/api/3/project/" .. project .. "/statuses", nil, callback)
 end
 
+-- Get all projects (may return empty if user lacks browse permissions)
+function M.get_projects(callback)
+  curl_request("GET", "/rest/api/3/project/search?maxResults=100&orderBy=name", nil, function(result, err)
+    if err then
+      if callback then callback(nil, err) end
+      return
+    end
+    if callback then callback(result.values or {}, nil) end
+  end)
+end
+
 -- Create a new issue
 function M.create_issue(project_key, summary, issue_type, callback)
   local data = {

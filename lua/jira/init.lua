@@ -22,7 +22,7 @@ M.toggle_node = function()
     node.expanded = not node.expanded
     render.clear(state.buf)
     render.render_issue_tree(state.tree, state.current_view)
-    
+
     local line_count = api.nvim_buf_line_count(state.buf)
     if cursor[1] > line_count then
       cursor[1] = line_count
@@ -31,50 +31,162 @@ M.toggle_node = function()
   end
 end
 
+M.toggle_all_nodes = function()
+  -- Determine target state: if any node is expanded, collapse all; otherwise expand all
+  local any_expanded = false
+  local function check_expanded(nodes)
+    for _, node in ipairs(nodes) do
+      if node.children and #node.children > 0 then
+        if node.expanded then
+          any_expanded = true
+          return
+        end
+        check_expanded(node.children)
+      end
+    end
+  end
+  check_expanded(state.tree)
+
+  local target = not any_expanded
+  local function set_expanded(nodes)
+    for _, node in ipairs(nodes) do
+      if node.children and #node.children > 0 then
+        node.expanded = target
+        set_expanded(node.children)
+      end
+    end
+  end
+  set_expanded(state.tree)
+
+  local cursor = api.nvim_win_get_cursor(state.win)
+  render.clear(state.buf)
+  render.render_issue_tree(state.tree, state.current_view)
+
+  local line_count = api.nvim_buf_line_count(state.buf)
+  if cursor[1] > line_count then
+    cursor[1] = line_count
+  end
+  api.nvim_win_set_cursor(state.win, cursor)
+end
+
 local function get_cache_key(project_key, view_name)
   if view_name == "My Issues" then
     local sorted = vim.tbl_map(function(p) return p end, state.my_issues_projects)
     table.sort(sorted)
-    return "global:MyIssues:" .. table.concat(sorted, ",")
+    local key = "global:MyIssues:" .. table.concat(sorted, ",")
+    if state.current_filter and state.current_filter ~= "" then
+      key = key .. ":filter:" .. state.current_filter
+    end
+    return key
   end
   local key = project_key .. ":" .. view_name
   if view_name == "JQL" then
     key = key .. ":" .. (state.custom_jql or "")
   end
+  if state.current_filter and state.current_filter ~= "" then
+    key = key .. ":filter:" .. state.current_filter
+  end
   return key
+end
+
+-- Helper to set keymap from config (handles string or table of keys)
+local function set_keymap(keys, fn, opts)
+  if type(keys) == "table" then
+    for _, key in ipairs(keys) do
+      vim.keymap.set("n", key, fn, opts)
+    end
+  else
+    vim.keymap.set("n", keys, fn, opts)
+  end
 end
 
 M.setup_keymaps = function()
   local opts = { noremap = true, silent = true, buffer = state.buf }
-  vim.keymap.set("n", "o", function() require("jira").toggle_node() end, opts)
-  vim.keymap.set("n", "<CR>", function() require("jira").toggle_node() end, opts)
-  vim.keymap.set("n", "<Tab>", function() require("jira").toggle_node() end, opts)
+  local km = config.options.keymaps
+
+  set_keymap(km.toggle_node, function() require("jira").toggle_node() end, opts)
+  set_keymap(km.toggle_all, function() require("jira").toggle_all_nodes() end, opts)
 
   -- Tab switching
-  vim.keymap.set("n", "S", function() require("jira").load_view(state.project_key, "Active Sprint") end, opts)
-  vim.keymap.set("n", "B", function() require("jira").load_view(state.project_key, "Backlog") end, opts)
-  vim.keymap.set("n", "M", function() require("jira").prompt_my_issues_projects() end, opts)
-  vim.keymap.set("n", "J", function() require("jira").prompt_jql() end, opts)
-  vim.keymap.set("n", "H", function() require("jira").load_view(state.project_key, "Help") end, opts)
-  vim.keymap.set("n", "K", function() require("jira").show_issue_details() end, opts)
-  vim.keymap.set("n", "m", function() require("jira").read_task() end, opts)
-  vim.keymap.set("n", "gx", function() require("jira").open_in_browser() end, opts)
+  local function pick_project_for_view(view_name)
+    -- If already have a project context, use it
+    if state.project_key and state.project_key ~= "" then
+      require("jira").load_view(state.project_key, view_name)
+      return
+    end
+    -- If we have saved projects, show picker
+    if #state.my_issues_projects > 0 then
+      if #state.my_issues_projects == 1 then
+        require("jira").load_view(state.my_issues_projects[1], view_name)
+      else
+        vim.ui.select(state.my_issues_projects, {
+          prompt = view_name .. " - Select project:",
+        }, function(choice)
+          if choice then
+            require("jira").load_view(choice, view_name)
+          end
+        end)
+      end
+    else
+      -- No saved projects, prompt for input
+      vim.ui.input({ prompt = "Project key for " .. view_name .. ": " }, function(input)
+        if input and input ~= "" then
+          require("jira").load_view(input:upper(), view_name)
+        end
+      end)
+    end
+  end
+
+  set_keymap(km.my_issues, function()
+    if #state.my_issues_projects == 0 then
+      vim.notify("No projects configured. Press E to edit projects.", vim.log.levels.WARN)
+      return
+    end
+    require("jira").load_my_issues_view()
+  end, opts)
+  set_keymap(km.jql, function() require("jira").prompt_jql() end, opts)
+  set_keymap(km.sprint, function() pick_project_for_view("Active Sprint") end, opts)
+  set_keymap(km.backlog, function() pick_project_for_view("Backlog") end, opts)
+  set_keymap(km.help, function() require("jira").load_view(state.project_key, "Help") end, opts)
+  set_keymap(km.edit_projects, function() require("jira").prompt_my_issues_projects() end, opts)
+  set_keymap(km.filter, function() require("jira").prompt_filter() end, opts)
+  set_keymap(km.clear_filter, function() require("jira").clear_filter() end, opts)
+  set_keymap(km.details, function() require("jira").show_issue_details() end, opts)
+  set_keymap(km.read_task, function() require("jira").read_task() end, opts)
+  set_keymap(km.open_browser, function() require("jira").open_in_browser() end, opts)
 
   -- Issue actions
-  vim.keymap.set("n", "s", function() require("jira").change_status() end, opts)
-  vim.keymap.set("n", "c", function() require("jira").create_story() end, opts)
-  vim.keymap.set("n", "d", function() require("jira").close_issue() end, opts)
+  set_keymap(km.change_status, function() require("jira").change_status() end, opts)
+  set_keymap(km.create_story, function() require("jira").create_story() end, opts)
+  set_keymap(km.close_issue, function() require("jira").close_issue() end, opts)
+  set_keymap(km.toggle_resolved, function() require("jira").toggle_resolved() end, opts)
 
   -- Actions
-  vim.keymap.set("n", "r", function()
+  set_keymap(km.refresh, function()
     local cache_key = get_cache_key(state.project_key, state.current_view)
     state.cache[cache_key] = nil
-    require("jira").load_view(state.project_key, state.current_view)
+    if state.current_view == "My Issues" then
+      require("jira").load_my_issues_view()
+    else
+      require("jira").load_view(state.project_key, state.current_view)
+    end
   end, opts)
 
-  vim.keymap.set("n", "q", function()
+  set_keymap(km.close, function()
     if state.win and api.nvim_win_is_valid(state.win) then
-       api.nvim_win_close(state.win, true)
+      -- Check if this is the last window
+      local wins = vim.tbl_filter(function(w)
+        return api.nvim_win_get_config(w).relative == ""
+      end, api.nvim_list_wins())
+      if #wins <= 1 then
+        -- Create empty buffer before closing to avoid E444
+        vim.cmd("enew")
+      end
+      if state.dim_win and api.nvim_win_is_valid(state.dim_win) then
+        api.nvim_win_close(state.dim_win, true)
+        state.dim_win = nil
+      end
+      api.nvim_win_close(state.win, true)
     end
   end, opts)
 end
@@ -137,10 +249,11 @@ M.load_view = function(project_key, view_name)
   ui.start_loading("Loading " .. view_name .. " for " .. project_key .. "...")
 
   local fetch_fn
+  local filter = state.current_filter
   if view_name == "Active Sprint" then
-    fetch_fn = function(pk, cb) sprint.get_active_sprint_issues(pk, cb) end
+    fetch_fn = function(pk, cb) sprint.get_active_sprint_issues(pk, filter, cb) end
   elseif view_name == "Backlog" then
-    fetch_fn = function(pk, cb) sprint.get_backlog_issues(pk, cb) end
+    fetch_fn = function(pk, cb) sprint.get_backlog_issues(pk, filter, cb) end
   elseif view_name == "JQL" then
     fetch_fn = function(pk, cb) sprint.get_issues_by_jql(pk, state.custom_jql, cb) end
   end
@@ -165,6 +278,34 @@ M.prompt_jql = function()
     state.custom_jql = input
     M.load_view(state.project_key, "JQL")
   end)
+end
+
+M.prompt_filter = function()
+  vim.ui.input({ prompt = "Filter (summary ~): ", default = state.current_filter or "" }, function(input)
+    if input == nil then return end -- cancelled
+    state.current_filter = input ~= "" and input or nil
+    -- Refresh current view with filter
+    if state.current_view == "My Issues" then
+      M.load_my_issues_view()
+    elseif state.current_view and state.project_key then
+      M.load_view(state.project_key, state.current_view)
+    end
+  end)
+end
+
+M.clear_filter = function()
+  if not state.current_filter then
+    vim.notify("No filter active", vim.log.levels.INFO)
+    return
+  end
+  state.current_filter = nil
+  vim.notify("Filter cleared", vim.log.levels.INFO)
+  -- Refresh current view
+  if state.current_view == "My Issues" then
+    M.load_my_issues_view()
+  elseif state.current_view and state.project_key then
+    M.load_view(state.project_key, state.current_view)
+  end
 end
 
 M.show_issue_details = function()
@@ -457,11 +598,22 @@ M.load_my_issues_view = function()
   end
 
   local project_list = table.concat(state.my_issues_projects, ", ")
-  local jql = string.format("assignee = currentUser() AND project IN (%s) ORDER BY updated DESC", project_list)
+  local jql
+  if state.hide_resolved then
+    jql = string.format("assignee = currentUser() AND project IN (%s) AND statusCategory != Done", project_list)
+  else
+    jql = string.format("assignee = currentUser() AND project IN (%s)", project_list)
+  end
 
+  if state.current_filter and state.current_filter ~= "" then
+    jql = jql .. string.format(" AND summary ~ \"%s\"", state.current_filter)
+  end
+
+  jql = jql .. " ORDER BY updated DESC"
   ui.start_loading("Loading My Issues...")
 
   sprint.get_issues_by_jql(state.my_issues_projects[1], jql, function(issues, err)
+    print("My Issues callback - err: " .. tostring(err) .. ", issues: " .. tostring(issues and #issues or "nil"))
     if err then
       vim.schedule(function()
         ui.stop_loading()
@@ -474,12 +626,57 @@ M.load_my_issues_view = function()
   end)
 end
 
+M.toggle_resolved = function()
+  state.hide_resolved = not state.hide_resolved
+  state.save()
+  local status = state.hide_resolved and "hidden" or "shown"
+  vim.notify("Resolved issues: " .. status, vim.log.levels.INFO)
+  -- Clear cache and refresh
+  local cache_key = get_cache_key(state.project_key, state.current_view)
+  state.cache[cache_key] = nil
+  if state.current_view == "My Issues" then
+    M.load_my_issues_view()
+  elseif state.current_view and state.project_key then
+    M.load_view(state.project_key, state.current_view)
+  end
+end
+
+-- TODO: Project picker from API (commented out due to permissions issues)
+-- M._show_project_picker = function(projects)
+--   local selected = {}
+--   for _, p in ipairs(state.my_issues_projects) do
+--     selected[p] = true
+--   end
+--   vim.ui.select(projects, {
+--     prompt = "Select project to add/remove (current: " .. table.concat(state.my_issues_projects, ", ") .. "). Esc to confirm.",
+--     format_item = function(item)
+--       local marker = selected[item.key] and "[x] " or "[ ] "
+--       return marker .. item.key .. " - " .. item.name
+--     end,
+--   }, function(choice)
+--     if not choice then
+--       if #state.my_issues_projects > 0 then
+--         local cache_key = get_cache_key(nil, "My Issues")
+--         state.cache[cache_key] = nil
+--         M.load_my_issues_view()
+--       end
+--       return
+--     end
+--     if selected[choice.key] then selected[choice.key] = nil else selected[choice.key] = true end
+--     state.my_issues_projects = {}
+--     for key, _ in pairs(selected) do table.insert(state.my_issues_projects, key) end
+--     table.sort(state.my_issues_projects)
+--     M._show_project_picker(projects)
+--   end)
+-- end
+
 M.prompt_my_issues_projects = function()
   local default = table.concat(state.my_issues_projects, ", ")
-  vim.ui.input({ prompt = "My Issues - Projects (comma-separated): ", default = default }, function(input)
+  vim.ui.input({ prompt = "Projects (comma-separated): ", default = default }, function(input)
     if not input then return end
     if input == "" then
       state.my_issues_projects = {}
+      state.save()
       vim.notify("My Issues projects cleared", vim.log.levels.INFO)
       return
     end
@@ -487,11 +684,36 @@ M.prompt_my_issues_projects = function()
     for _, p in ipairs(vim.split(input, ",", { trimempty = true })) do
       table.insert(state.my_issues_projects, vim.trim(p):upper())
     end
+    state.save()
     local cache_key = get_cache_key(nil, "My Issues")
     state.cache[cache_key] = nil
     M.load_my_issues_view()
   end)
 end
+
+-- TODO: Re-enable when project browse permissions are available
+-- M.prompt_my_issues_projects_with_fetch = function()
+--   if state.cached_projects and #state.cached_projects > 0 then
+--     M._show_project_picker(state.cached_projects)
+--     return
+--   end
+--   local jira_api = require("jira.jira-api.api")
+--   vim.notify("Fetching projects...", vim.log.levels.INFO)
+--   jira_api.get_projects(function(projects, err)
+--     vim.schedule(function()
+--       if err then
+--         vim.notify("Error fetching projects: " .. err, vim.log.levels.ERROR)
+--         return
+--       end
+--       if not projects or #projects == 0 then
+--         vim.notify("No projects found. Check your Jira credentials.", vim.log.levels.WARN)
+--         return
+--       end
+--       state.cached_projects = projects
+--       M._show_project_picker(projects)
+--     end)
+--   end)
+-- end
 
 M.open = function(project_key)
   -- If already open, just focus
@@ -507,13 +729,15 @@ M.open = function(project_key)
     return
   end
 
-  if not project_key then
-    project_key = vim.fn.input("Jira Project Key: ")
-  end
-
+  -- If no project key, open My Issues flow
   if not project_key or project_key == "" then
-     vim.notify("Project key is required", vim.log.levels.ERROR)
-     return
+    -- If we have saved projects, load them directly
+    if #state.my_issues_projects > 0 then
+      M.load_my_issues_view()
+    else
+      M.prompt_my_issues_projects()
+    end
+    return
   end
 
   M.load_view(project_key, "Active Sprint")

@@ -257,13 +257,23 @@ local function render_issue_line(node, depth, row)
   return full_line, highlights
 end
 
+local function format_keys(keys)
+  if type(keys) == "table" then
+    return table.concat(keys, ", ")
+  end
+  return keys
+end
+
 local function render_header(view)
+  local config = require("jira.config")
+  local km = config.options.keymaps
+
   local tabs = {
-    { name = "Active Sprint", key = "S" },
-    { name = "Backlog", key = "B" },
-    { name = "My Issues", key = "M" },
-    { name = "JQL", key = "J" },
-    { name = "Help", key = "H" },
+    { name = "My Issues", key = format_keys(km.my_issues) },
+    { name = "JQL", key = format_keys(km.jql) },
+    { name = "Active Sprint", key = format_keys(km.sprint) },
+    { name = "Backlog", key = format_keys(km.backlog) },
+    { name = "Help", key = format_keys(km.help) },
   }
 
   local header = "  "
@@ -282,32 +292,54 @@ local function render_header(view)
     })
   end
 
-  api.nvim_buf_set_lines(state.buf, 0, -1, false, { header, "" })
+  -- Show active filter if present
+  local filter_line = ""
+  if state.current_filter and state.current_filter ~= "" then
+    filter_line = "  Filter: " .. state.current_filter .. "  (press " .. format_keys(km.clear_filter) .. " to clear)"
+  end
+
+  api.nvim_buf_set_lines(state.buf, 0, -1, false, { header, filter_line })
   for _, h in ipairs(hls) do
     api.nvim_buf_set_extmark(state.buf, state.ns, 0, h.start_col, {
       end_col = h.end_col,
       hl_group = h.hl,
     })
   end
+
+  -- Highlight filter line
+  if filter_line ~= "" then
+    api.nvim_buf_set_extmark(state.buf, state.ns, 1, 0, {
+      end_col = #filter_line,
+      hl_group = "WarningMsg",
+    })
+  end
 end
 
 function M.render_help(view)
   render_header(view)
+  local config = require("jira.config")
+  local km = config.options.keymaps
+
   local help_content = {
-    { k = "o, <CR>, <Tab>", d = "Toggle Node (Expand/Collapse)" },
-    { k = "S", d = "Switch to Active Sprint" },
-    { k = "B", d = "Switch to Backlog" },
-    { k = "M", d = "My Issues (cross-project)" },
-    { k = "J", d = "Custom JQL Search" },
-    { k = "s", d = "Change issue status" },
-    { k = "c", d = "Create new story" },
-    { k = "d", d = "Close issue (Done)" },
-    { k = "K", d = "Show Issue Details (Popup)" },
-    { k = "m", d = "Read Task as Markdown" },
-    { k = "gx", d = "Open Task in Browser" },
-    { k = "r", d = "Refresh current view" },
-    { k = "H", d = "Show this Help" },
-    { k = "q", d = "Close Board" },
+    { k = format_keys(km.toggle_node), d = "Toggle Node (Expand/Collapse)" },
+    { k = format_keys(km.toggle_all), d = "Toggle All (Expand/Collapse)" },
+    { k = format_keys(km.my_issues), d = "My Issues (cross-project)" },
+    { k = format_keys(km.jql), d = "Custom JQL Search" },
+    { k = format_keys(km.sprint), d = "Switch to Active Sprint" },
+    { k = format_keys(km.backlog), d = "Switch to Backlog" },
+    { k = format_keys(km.edit_projects), d = "Edit saved projects" },
+    { k = format_keys(km.filter), d = "Filter by summary" },
+    { k = format_keys(km.clear_filter), d = "Clear filter" },
+    { k = format_keys(km.change_status), d = "Change issue status" },
+    { k = format_keys(km.create_story), d = "Create new story" },
+    { k = format_keys(km.close_issue), d = "Close issue (Done)" },
+    { k = format_keys(km.toggle_resolved), d = "Toggle show/hide resolved" },
+    { k = format_keys(km.details), d = "Show Issue Details (Popup)" },
+    { k = format_keys(km.read_task), d = "Read Task as Markdown" },
+    { k = format_keys(km.open_browser), d = "Open Task in Browser" },
+    { k = format_keys(km.refresh), d = "Refresh current view" },
+    { k = format_keys(km.help), d = "Show this Help" },
+    { k = format_keys(km.close), d = "Close Board" },
   }
 
   local lines = { "" }

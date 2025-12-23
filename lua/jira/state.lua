@@ -1,3 +1,5 @@
+local data_path = vim.fn.stdpath("data") .. "/jira_nvim.json"
+
 local state = {
   buf = nil,
   win = nil,
@@ -11,6 +13,40 @@ local state = {
   custom_jql = nil,
   cache = {},
   my_issues_projects = {},
+  cached_projects = nil,
+  hide_resolved = true,
+  current_filter = nil,
 }
+
+function state.save()
+  local data = {
+    my_issues_projects = state.my_issues_projects,
+    hide_resolved = state.hide_resolved,
+  }
+  local json = vim.json.encode(data)
+  local file = io.open(data_path, "w")
+  if file then
+    file:write(json)
+    file:close()
+  end
+end
+
+function state.load()
+  local file = io.open(data_path, "r")
+  if file then
+    local content = file:read("*a")
+    file:close()
+    local ok, data = pcall(vim.json.decode, content)
+    if ok and data then
+      state.my_issues_projects = data.my_issues_projects or {}
+      if data.hide_resolved ~= nil then
+        state.hide_resolved = data.hide_resolved
+      end
+    end
+  end
+end
+
+-- Load on require
+state.load()
 
 return state

@@ -309,7 +309,15 @@ function M.open_markdown_view(title, lines)
     border = "rounded",
   })
 
-  vim.keymap.set("n", "q", function() api.nvim_win_close(win, true) end, { buffer = buf, silent = true })
+  local config = require("jira.config")
+  local close_keys = config.options.keymaps.close
+  if type(close_keys) == "table" then
+    for _, key in ipairs(close_keys) do
+      vim.keymap.set("n", key, function() api.nvim_win_close(win, true) end, { buffer = buf, silent = true })
+    end
+  else
+    vim.keymap.set("n", close_keys, function() api.nvim_win_close(win, true) end, { buffer = buf, silent = true })
+  end
 end
 
 return M

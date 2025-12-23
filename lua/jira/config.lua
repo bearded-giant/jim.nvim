@@ -23,7 +23,28 @@ M.defaults = {
     token = "",
     limit = 500,
   },
-  projects = {}
+  projects = {},
+  keymaps = {
+    toggle_node = { "o", "<CR>", "<Tab>" },
+    toggle_all = "t",
+    my_issues = "M",
+    jql = "J",
+    sprint = "S",
+    backlog = "B",
+    help = "H",
+    edit_projects = "E",
+    filter = "/",
+    clear_filter = "<BS>",
+    details = "K",
+    read_task = "m",
+    open_browser = "gx",
+    change_status = "s",
+    create_story = "c",
+    close_issue = "d",
+    toggle_resolved = "x",
+    refresh = "r",
+    close = { "q", "<Esc>" },
+  },
 }
 
 ---@type JiraConfig
