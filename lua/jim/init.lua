@@ -2,12 +2,12 @@ local M = {}
 
 local api = vim.api
 
-local state = require "jira.state"
-local config = require "jira.config"
-local render = require "jira.render"
-local util = require "jira.util"
-local sprint = require("jira.jira-api.sprint")
-local ui = require("jira.ui")
+local state = require "jim.state"
+local config = require "jim.config"
+local render = require "jim.render"
+local util = require "jim.util"
+local sprint = require("jim.jira-api.sprint")
+local ui = require("jim.ui")
 
 M.setup = function(opts)
   config.setup(opts)
@@ -109,8 +109,8 @@ M.setup_keymaps = function()
   local opts = { noremap = true, silent = true, buffer = state.buf }
   local km = config.options.keymaps
 
-  set_keymap(km.toggle_node, function() require("jira").toggle_node() end, opts)
-  set_keymap(km.toggle_all, function() require("jira").toggle_all_nodes() end, opts)
+  set_keymap(km.toggle_node, function() require("jim").toggle_node() end, opts)
+  set_keymap(km.toggle_all, function() require("jim").toggle_all_nodes() end, opts)
 
   -- Tab switching
   local function pick_project_for_view(view_name)
@@ -127,19 +127,19 @@ M.setup_keymaps = function()
         end,
       }, function(choice)
         if choice then
-          require("jira").load_view(choice, view_name)
+          require("jim").load_view(choice, view_name)
         end
       end)
     elseif #state.my_issues_projects == 1 then
-      require("jira").load_view(state.my_issues_projects[1], view_name)
+      require("jim").load_view(state.my_issues_projects[1], view_name)
     elseif state.project_key and state.project_key ~= "" then
       -- No saved projects but have current context
-      require("jira").load_view(state.project_key, view_name)
+      require("jim").load_view(state.project_key, view_name)
     else
       -- No saved projects, prompt for input
       vim.ui.input({ prompt = "Project key for " .. view_name .. ": " }, function(input)
         if input and input ~= "" then
-          require("jira").load_view(input:upper(), view_name)
+          require("jim").load_view(input:upper(), view_name)
         end
       end)
     end
@@ -150,35 +150,35 @@ M.setup_keymaps = function()
       vim.notify("No projects configured. Press E to edit projects.", vim.log.levels.WARN)
       return
     end
-    require("jira").load_my_issues_view()
+    require("jim").load_my_issues_view()
   end, opts)
-  set_keymap(km.jql, function() require("jira").prompt_jql() end, opts)
+  set_keymap(km.jql, function() require("jim").prompt_jql() end, opts)
   set_keymap(km.sprint, function() pick_project_for_view("Active Sprint") end, opts)
   set_keymap(km.backlog, function() pick_project_for_view("Backlog") end, opts)
-  set_keymap(km.help, function() require("jira").load_view(state.project_key, "Help") end, opts)
-  set_keymap(km.edit_projects, function() require("jira").prompt_my_issues_projects() end, opts)
-  set_keymap(km.edit_issue, function() require("jira").edit_issue() end, opts)
-  set_keymap(km.filter, function() require("jira").prompt_filter() end, opts)
-  set_keymap(km.clear_filter, function() require("jira").clear_filter() end, opts)
-  set_keymap(km.details, function() require("jira").show_issue_details() end, opts)
-  set_keymap(km.read_task, function() require("jira").read_task() end, opts)
-  set_keymap(km.open_browser, function() require("jira").open_in_browser() end, opts)
-  set_keymap(km.yank_key, function() require("jira").yank_key() end, opts)
+  set_keymap(km.help, function() require("jim").load_view(state.project_key, "Help") end, opts)
+  set_keymap(km.edit_projects, function() require("jim").prompt_my_issues_projects() end, opts)
+  set_keymap(km.edit_issue, function() require("jim").edit_issue() end, opts)
+  set_keymap(km.filter, function() require("jim").prompt_filter() end, opts)
+  set_keymap(km.clear_filter, function() require("jim").clear_filter() end, opts)
+  set_keymap(km.details, function() require("jim").show_issue_details() end, opts)
+  set_keymap(km.read_task, function() require("jim").read_task() end, opts)
+  set_keymap(km.open_browser, function() require("jim").open_in_browser() end, opts)
+  set_keymap(km.yank_key, function() require("jim").yank_key() end, opts)
 
   -- Issue actions
-  set_keymap(km.change_status, function() require("jira").change_status() end, opts)
-  set_keymap(km.create_story, function() require("jira").create_story() end, opts)
-  set_keymap(km.close_issue, function() require("jira").close_issue() end, opts)
-  set_keymap(km.toggle_resolved, function() require("jira").toggle_resolved() end, opts)
+  set_keymap(km.change_status, function() require("jim").change_status() end, opts)
+  set_keymap(km.create_story, function() require("jim").create_story() end, opts)
+  set_keymap(km.close_issue, function() require("jim").close_issue() end, opts)
+  set_keymap(km.toggle_resolved, function() require("jim").toggle_resolved() end, opts)
 
   -- Actions
   set_keymap(km.refresh, function()
     local cache_key = get_cache_key(state.project_key, state.current_view)
     state.cache[cache_key] = nil
     if state.current_view == "My Issues" then
-      require("jira").load_my_issues_view()
+      require("jim").load_my_issues_view()
     else
-      require("jira").load_view(state.project_key, state.current_view)
+      require("jim").load_view(state.project_key, state.current_view)
     end
   end, opts)
 
@@ -338,7 +338,7 @@ M.show_issue_details = function()
   if not node or not node.key then return end
 
   ui.start_loading("Fetching details for " .. node.key .. "...")
-  local jira_api = require("jira.jira-api.api")
+  local jira_api = require("jim.jira-api.api")
   jira_api.get_issue(node.key, function(issue, err)
     vim.schedule(function()
       ui.stop_loading()
@@ -358,7 +358,7 @@ M.read_task = function()
   if not node or not node.key then return end
 
   ui.start_loading("Fetching full details for " .. node.key .. "...")
-  local jira_api = require("jira.jira-api.api")
+  local jira_api = require("jim.jira-api.api")
   jira_api.get_issue(node.key, function(issue, err)
     vim.schedule(function()
       ui.stop_loading()
@@ -399,7 +399,7 @@ M.read_task = function()
         end
       end
 
-      ui.open_markdown_view("Jira: " .. issue.key, lines)
+      ui.open_markdown_view("Jim: " .. issue.key, lines)
     end)
   end)
 end
@@ -450,7 +450,7 @@ M._edit_summary = function(node)
   vim.ui.input({ prompt = "Summary: ", default = node.summary }, function(input)
     if not input or input == "" or input == node.summary then return end
 
-    local jira_api = require("jira.jira-api.api")
+    local jira_api = require("jim.jira-api.api")
     ui.start_loading("Updating summary...")
     jira_api.update_issue(node.key, { summary = input }, function(success, err)
       vim.schedule(function()
@@ -470,7 +470,7 @@ M._append_description = function(node)
   vim.ui.input({ prompt = "Append to description: " }, function(input)
     if not input or input == "" then return end
 
-    local jira_api = require("jira.jira-api.api")
+    local jira_api = require("jim.jira-api.api")
     ui.start_loading("Fetching current description...")
     jira_api.get_issue(node.key, function(issue, err)
       if err then
@@ -538,7 +538,7 @@ M.change_status = function()
     return
   end
 
-  local jira_api = require("jira.jira-api.api")
+  local jira_api = require("jim.jira-api.api")
 
   ui.start_loading("Fetching transitions...")
   jira_api.get_transitions(node.key, function(transitions, err)
@@ -595,7 +595,7 @@ M.close_issue = function()
     return
   end
 
-  local jira_api = require("jira.jira-api.api")
+  local jira_api = require("jim.jira-api.api")
 
   ui.start_loading("Finding done transition...")
   jira_api.get_transitions(node.key, function(transitions, err)
@@ -648,7 +648,7 @@ M._prompt_and_create_story = function(project_key)
     if not summary or summary == "" then return end
 
     vim.ui.input({ prompt = "Description (optional): " }, function(description)
-      local jira_api = require("jira.jira-api.api")
+      local jira_api = require("jim.jira-api.api")
 
       local function do_create(account_id)
         ui.start_loading("Creating story...")
@@ -865,7 +865,7 @@ end
 --     M._show_project_picker(state.cached_projects)
 --     return
 --   end
---   local jira_api = require("jira.jira-api.api")
+--   local jira_api = require("jim.jira-api.api")
 --   vim.notify("Fetching projects...", vim.log.levels.INFO)
 --   jira_api.get_projects(function(projects, err)
 --     vim.schedule(function()

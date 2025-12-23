@@ -1,6 +1,6 @@
-local state = require("jira.state")
-local util = require("jira.util")
-local ui = require("jira.ui")
+local state = require("jim.state")
+local util = require("jim.util")
+local ui = require("jim.ui")
 local api = vim.api
 
 local MAX = {
@@ -61,24 +61,24 @@ end
 local function get_issue_icon(node)
   local type = node.type or ""
   if type == "Bug" then
-    return "", "JiraIconBug"
+    return "", "JimIconBug"
   elseif type == "Story" then
-    return "", "JiraIconStory"
+    return "", "JimIconStory"
   elseif type == "Task" then
-    return "", "JiraIconTask"
+    return "", "JimIconTask"
   elseif type == "Sub-task" or type == "Subtask" then
-    return "󰙅", "JiraIconSubTask"
+    return "󰙅", "JimIconSubTask"
   elseif type == "Sub-Test" or type == "Sub Test Execution" then
-    return "󰙨", "JiraIconTest"
+    return "󰙨", "JimIconTest"
   elseif type == "Sub Design" then
-    return "󰟶", "JiraIconDesign"
+    return "󰟶", "JimIconDesign"
   elseif type == "Sub Overhead" then
-    return "󱖫", "JiraIconOverhead"
+    return "󱖫", "JimIconOverhead"
   elseif type == "Sub-Imp" then
-    return "", "JiraIconImp"
+    return "", "JimIconImp"
   end
 
-  return "●", "JiraIconStory"
+  return "●", "JimIconStory"
 end
 
 ---@param spent number
@@ -190,10 +190,10 @@ local function render_issue_line(node, depth, row)
   add_hl(highlights, col, key, depth == 1 and "Title" or "LineNr")
   col = col + #key + 1
 
-  add_hl(highlights, col, title, depth == 1 and "JiraTopLevel" or "Comment")
+  add_hl(highlights, col, title, depth == 1 and "JimTopLevel" or "Comment")
   col = col + #title + 1
 
-  add_hl(highlights, col, pts, "JiraStoryPoint")
+  add_hl(highlights, col, pts, "JimStoryPoint")
 
   -- RIGHT -------------------------------------------------
   local bar_width = 8
@@ -223,7 +223,7 @@ local function render_issue_line(node, depth, row)
   if is_root then
     local filled_bytes = bar_filled_len * 3
     local empty_bytes = (bar_width - bar_filled_len) * 3
-    add_hl(highlights, right_col_start, string.sub(bar_display, 1, filled_bytes), "JiraProgressBar")
+    add_hl(highlights, right_col_start, string.sub(bar_display, 1, filled_bytes), "JimProgressBar")
     add_hl(highlights, right_col_start + filled_bytes,
       string.sub(bar_display, filled_bytes + 1, filled_bytes + empty_bytes), "linenr")
   end
@@ -237,7 +237,7 @@ local function render_issue_line(node, depth, row)
   current_col = current_col + #time_str + #time_pad + 2
 
   -- Highlight Assignee
-  local ass_hl = (node.assignee == nil or node.assignee == "Unassigned") and "JiraAssigneeUnassigned" or "JiraAssignee"
+  local ass_hl = (node.assignee == nil or node.assignee == "Unassigned") and "JimAssigneeUnassigned" or "JimAssignee"
   add_hl(highlights, current_col, assignee_str, ass_hl)
 
   -- Highlight Status
@@ -265,7 +265,7 @@ local function format_keys(keys)
 end
 
 local function render_header(view)
-  local config = require("jira.config")
+  local config = require("jim.config")
   local km = config.options.keymaps
 
   local tabs = {
@@ -288,7 +288,7 @@ local function render_header(view)
     table.insert(hls, {
       start_col = start_col,
       end_col = start_col + #tab_str,
-      hl = is_active and "JiraTabActive" or "JiraTabInactive",
+      hl = is_active and "JimTabActive" or "JimTabInactive",
     })
   end
 
@@ -317,7 +317,7 @@ end
 
 function M.render_help(view)
   render_header(view)
-  local config = require("jira.config")
+  local config = require("jim.config")
   local km = config.options.keymaps
 
   local help_content = {

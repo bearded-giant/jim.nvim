@@ -1,10 +1,10 @@
-local data_path = vim.fn.stdpath("data") .. "/jira_nvim.json"
+local data_path = vim.fn.stdpath("data") .. "/jim_nvim.json"
 
 local state = {
   buf = nil,
   win = nil,
   dim_win = nil,
-  ns = vim.api.nvim_create_namespace("Jira"),
+  ns = vim.api.nvim_create_namespace("Jim"),
   status_hls = {},
   tree = {},
   line_map = {},

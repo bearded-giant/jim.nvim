@@ -1,5 +1,5 @@
 -- api.lua: Jira REST API client using curl
-local config = require("jira.config")
+local config = require("jim.config")
 local M = {}
 
 -- Get environment variables

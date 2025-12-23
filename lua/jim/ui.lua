@@ -1,6 +1,6 @@
 local M = {}
 local api = vim.api
-local state = require("jira.state")
+local state = require("jim.state")
 
 local function get_theme_color(groups, attr)
   for _, g in ipairs(groups) do
@@ -23,9 +23,9 @@ local function get_palette()
 end
 
 function M.get_status_hl(status_name)
-  if not status_name or status_name == "" then return "JiraStatus" end
+  if not status_name or status_name == "" then return "JimStatus" end
 
-  local hl_name = "JiraStatus_" .. status_name:gsub("%s+", "_"):gsub("[^%w_]", "")
+  local hl_name = "JimStatus_" .. status_name:gsub("%s+", "_"):gsub("[^%w_]", "")
   if state.status_hls[status_name] then return hl_name end
 
   local palette = get_palette()
@@ -65,27 +65,27 @@ function M.get_status_hl(status_name)
 end
 
 function M.setup_static_highlights()
-  vim.api.nvim_set_hl(0, "JiraTopLevel", { link = "CursorLineNr", bold = true })
-  vim.api.nvim_set_hl(0, "JiraStoryPoint", { link = "Error", bold = true })
-  vim.api.nvim_set_hl(0, "JiraAssignee", { link = "MoreMsg" })
-  vim.api.nvim_set_hl(0, "JiraAssigneeUnassigned", { link = "Comment", italic = true })
+  vim.api.nvim_set_hl(0, "JimTopLevel", { link = "CursorLineNr", bold = true })
+  vim.api.nvim_set_hl(0, "JimStoryPoint", { link = "Error", bold = true })
+  vim.api.nvim_set_hl(0, "JimAssignee", { link = "MoreMsg" })
+  vim.api.nvim_set_hl(0, "JimAssigneeUnassigned", { link = "Comment", italic = true })
   vim.api.nvim_set_hl(0, "exgreen", { fg = "#a6e3a1" })
-  vim.api.nvim_set_hl(0, "JiraProgressBar", { link = "Function" })
-  vim.api.nvim_set_hl(0, "JiraStatus", { link = "lualine_a_insert" })
-  vim.api.nvim_set_hl(0, "JiraStatusRoot", { link = "lualine_a_insert", bold = true })
+  vim.api.nvim_set_hl(0, "JimProgressBar", { link = "Function" })
+  vim.api.nvim_set_hl(0, "JimStatus", { link = "lualine_a_insert" })
+  vim.api.nvim_set_hl(0, "JimStatusRoot", { link = "lualine_a_insert", bold = true })
 
-  vim.api.nvim_set_hl(0, "JiraTabActive", { link = "CurSearch", bold = true })
-  vim.api.nvim_set_hl(0, "JiraTabInactive", { link = "Search" })
+  vim.api.nvim_set_hl(0, "JimTabActive", { link = "CurSearch", bold = true })
+  vim.api.nvim_set_hl(0, "JimTabInactive", { link = "Search" })
 
   -- Icons
-  vim.api.nvim_set_hl(0, "JiraIconBug", { fg = "#f38ba8" })      -- Red
-  vim.api.nvim_set_hl(0, "JiraIconStory", { fg = "#a6e3a1" })    -- Green
-  vim.api.nvim_set_hl(0, "JiraIconTask", { fg = "#89b4fa" })     -- Blue
-  vim.api.nvim_set_hl(0, "JiraIconSubTask", { fg = "#94e2d5" })  -- Teal
-  vim.api.nvim_set_hl(0, "JiraIconTest", { fg = "#fab387" })     -- Peach
-  vim.api.nvim_set_hl(0, "JiraIconDesign", { fg = "#cba6f7" })   -- Mauve
-  vim.api.nvim_set_hl(0, "JiraIconOverhead", { fg = "#9399b2" }) -- Overlay2
-  vim.api.nvim_set_hl(0, "JiraIconImp", { fg = "#89dceb" })      -- Sky
+  vim.api.nvim_set_hl(0, "JimIconBug", { fg = "#f38ba8" })      -- Red
+  vim.api.nvim_set_hl(0, "JimIconStory", { fg = "#a6e3a1" })    -- Green
+  vim.api.nvim_set_hl(0, "JimIconTask", { fg = "#89b4fa" })     -- Blue
+  vim.api.nvim_set_hl(0, "JimIconSubTask", { fg = "#94e2d5" })  -- Teal
+  vim.api.nvim_set_hl(0, "JimIconTest", { fg = "#fab387" })     -- Peach
+  vim.api.nvim_set_hl(0, "JimIconDesign", { fg = "#cba6f7" })   -- Mauve
+  vim.api.nvim_set_hl(0, "JimIconOverhead", { fg = "#9399b2" }) -- Overlay2
+  vim.api.nvim_set_hl(0, "JimIconImp", { fg = "#89dceb" })      -- Sky
 end
 
 local function get_window_dimensions()
@@ -135,8 +135,8 @@ function M.create_window()
     zindex = 44,
   })
   api.nvim_win_set_option(state.dim_win, "winblend", 50)
-  api.nvim_win_set_option(state.dim_win, "winhighlight", "Normal:JiraDim")
-  vim.api.nvim_set_hl(0, "JiraDim", { bg = "#000000" })
+  api.nvim_win_set_option(state.dim_win, "winhighlight", "Normal:JimDim")
+  vim.api.nvim_set_hl(0, "JimDim", { bg = "#000000" })
 
   state.buf = api.nvim_create_buf(false, true)
   api.nvim_buf_set_option(state.buf, "bufhidden", "wipe")
@@ -151,7 +151,7 @@ function M.create_window()
     relative = 'editor',
     style = "minimal",
     border = { " ", " ", " ", " ", " ", " ", " ", " " },
-    title = { { "  Jira Board ", "StatusLineTerm" } },
+    title = { { "  Jim Board ", "StatusLineTerm" } },
     title_pos = "center",
     zindex = 45,
   })
@@ -271,7 +271,7 @@ local function wrap_text(text, width)
 end
 
 function M.show_issue_details_popup(issue)
-  local util = require("jira.util")
+  local util = require("jim.util")
   local fields = issue.fields or {}
   local max_width = 80
 
@@ -360,7 +360,7 @@ function M.show_issue_details_popup(issue)
   local assignee_row = #lines
   table.insert(lines, string.format(" Assignee:  %s", assignee))
   table.insert(hls, { row = assignee_row, col = 1, end_col = 10, hl = "Label" })
-  local ass_hl = assignee == "Unassigned" and "JiraAssigneeUnassigned" or "JiraAssignee"
+  local ass_hl = assignee == "Unassigned" and "JimAssigneeUnassigned" or "JimAssignee"
   table.insert(hls, { row = assignee_row, col = 12, end_col = -1, hl = ass_hl })
 
   local buf = api.nvim_create_buf(false, true)
@@ -441,7 +441,7 @@ function M.open_markdown_view(title, lines)
     border = "rounded",
   })
 
-  local config = require("jira.config")
+  local config = require("jim.config")
   local close_keys = config.options.keymaps.close
   if type(close_keys) == "table" then
     for _, key in ipairs(close_keys) do

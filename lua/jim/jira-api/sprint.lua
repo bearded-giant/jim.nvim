@@ -1,6 +1,6 @@
 -- sprint.lua: Sprint queries and task grouping
-local api = require("jira.jira-api.api")
-local config = require("jira.config")
+local api = require("jim.jira-api.api")
+local config = require("jim.config")
 local M = {}
 
 -- Helper to safely check if a value is not nil/vim.NIL

@@ -1,6 +1,8 @@
-# jira.nvim
+# Jim (Jira Improved-ish)
 
 A Neovim plugin for viewing and managing Jira issues with an interactive TUI.
+
+Since Jira UX is a time sucking disaster for dev productivity....
 
 ## Features
 
@@ -32,9 +34,9 @@ Using lazy.nvim:
 
 ```lua
 {
-  "your-username/jira.nvim",
+  "bearded-giant/jim.nvim",
   config = function()
-    require("jira").setup({
+    require("jim").setup({
       jira = {
         base = "https://your-domain.atlassian.net",
         email = "your-email@example.com",
@@ -49,9 +51,9 @@ Using environment variables (recommended):
 
 ```lua
 {
-  dir = "~/path/to/jira.nvim",
+  dir = "~/path/to/jim.nvim",
   config = function()
-    require("jira").setup({
+    require("jim").setup({
       jira = {
         base = vim.fn.getenv("JIRA_BASE_URL"),
         email = vim.fn.getenv("JIRA_EMAIL"),
@@ -65,7 +67,7 @@ Using environment variables (recommended):
 ## Configuration
 
 ```lua
-require("jira").setup({
+require("jim").setup({
   jira = {
     base = "https://your-domain.atlassian.net",  -- Required: Jira instance URL
     email = "your-email@example.com",             -- Required: Atlassian account email
@@ -109,7 +111,7 @@ require("jira").setup({
 
 ### API Token
 
-Generate an API token at: https://id.atlassian.com/manage-profile/security/api-tokens
+Generate an API token at: <https://id.atlassian.com/manage-profile/security/api-tokens>
 
 ### Finding Custom Field IDs
 
@@ -121,11 +123,11 @@ curl -s -u "email:token" "https://your-domain.atlassian.net/rest/api/3/field" | 
 
 ## Usage
 
-Open the Jira board:
+Open the board:
 
 ```vim
-:Jira              " Opens My Issues if projects configured, else prompts
-:Jira PROJECT_KEY  " Opens Active Sprint for specific project
+:Jim              " Opens My Issues if projects configured, else prompts
+:Jim PROJECT_KEY  " Opens Active Sprint for specific project
 ```
 
 ## Keymaps
@@ -134,50 +136,50 @@ All keymaps are configurable via `setup()`. Defaults shown below.
 
 ### Navigation
 
-| Key | Action |
-|-----|--------|
+| Key                   | Action                      |
+| --------------------- | --------------------------- |
 | `o` / `Enter` / `Tab` | Toggle node expand/collapse |
-| `t` | Toggle all expand/collapse |
-| `q` / `Esc` | Close board |
+| `t`                   | Toggle all expand/collapse  |
+| `q` / `Esc`           | Close board                 |
 
 ### Views
 
-| Key | Action |
-|-----|--------|
+| Key | Action                                         |
+| --- | ---------------------------------------------- |
 | `M` | My Issues (cross-project, uses saved projects) |
-| `J` | Custom JQL search |
-| `S` | Switch to Active Sprint |
-| `B` | Switch to Backlog |
-| `H` | Show help |
-| `E` | Edit saved projects |
-| `r` | Refresh current view |
+| `J` | Custom JQL search                              |
+| `S` | Switch to Active Sprint                        |
+| `B` | Switch to Backlog                              |
+| `H` | Show help                                      |
+| `E` | Edit saved projects                            |
+| `r` | Refresh current view                           |
 
 ### Filtering
 
-| Key | Action |
-|-----|--------|
-| `/` | Filter by summary text |
-| `Backspace` | Clear active filter |
+| Key         | Action                 |
+| ----------- | ---------------------- |
+| `/`         | Filter by summary text |
+| `Backspace` | Clear active filter    |
 
 ### Issue Actions
 
-| Key | Action |
-|-----|--------|
-| `e` | Edit issue (summary/description/status menu) |
-| `s` | Change issue status (workflow-aware) |
-| `c` | Create new story (prompts summary + description) |
-| `d` | Close issue (transition to Done) |
-| `x` | Toggle show/hide resolved issues |
-| `K` | Show issue details (fetches full data) |
-| `m` | Read full task as markdown |
-| `y` | Copy issue key to clipboard |
-| `gx` | Open issue in browser |
+| Key  | Action                                           |
+| ---- | ------------------------------------------------ |
+| `e`  | Edit issue (summary/description/status menu)     |
+| `s`  | Change issue status (workflow-aware)             |
+| `c`  | Create new story (prompts summary + description) |
+| `d`  | Close issue (transition to Done)                 |
+| `x`  | Toggle show/hide resolved issues                 |
+| `K`  | Show issue details (fetches full data)           |
+| `m`  | Read full task as markdown                       |
+| `y`  | Copy issue key to clipboard                      |
+| `gx` | Open issue in browser                            |
 
 ## Views
 
 ### My Issues
 
-Cross-project view showing issues assigned to you. Press `E` to configure which projects to include (comma-separated, e.g., `SEC, PLAT, INFRA`). Your selection is saved to `~/.local/share/nvim/jira_nvim.json` and persists across sessions.
+Cross-project view showing issues assigned to you. Press `E` to configure which projects to include (comma-separated, e.g., `SEC, PLAT, INFRA`). Your selection is saved to `~/.local/share/nvim/jim_nvim.json` and persists across sessions.
 
 Press `M` to load My Issues. If no projects are configured, you'll be prompted to set them up with `E`.
 
@@ -186,6 +188,7 @@ Press `M` to load My Issues. If no projects are configured, you'll be prompted t
 Shows all issues in the current active sprint for the selected project. Issues are displayed hierarchically with parent tasks and their subtasks.
 
 When switching to Sprint view:
+
 - If you have a project context, it uses that project
 - If you have saved projects, shows a picker
 - Otherwise prompts for project key
@@ -253,7 +256,7 @@ Issues are collapsed by default. Use `o`/`Enter`/`Tab` to expand individual item
 
 ## State Persistence
 
-The plugin saves the following to `~/.local/share/nvim/jira_nvim.json`:
+The plugin saves the following to `~/.local/share/nvim/jim_nvim.json`:
 
 - `my_issues_projects` - Your configured project keys for My Issues
 - `hide_resolved` - Whether to show/hide resolved issues
