@@ -103,6 +103,8 @@ require("jim").setup({
     close_issue = "d",
     toggle_resolved = "x",
     yank_key = "y",
+    export_csv = "gE",
+    export_markdown = "gm",
     refresh = "r",
     close = { "q", "<Esc>" },
   },
@@ -174,6 +176,8 @@ All keymaps are configurable via `setup()`. Defaults shown below.
 | `m`  | Read full task as markdown                       |
 | `y`  | Copy issue key to clipboard                      |
 | `gx` | Open issue in browser                            |
+| `gE` | Export current view to CSV                       |
+| `gm` | Export issue under cursor to Markdown file       |
 
 ## Views
 
