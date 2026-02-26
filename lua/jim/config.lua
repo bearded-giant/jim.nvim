@@ -47,6 +47,8 @@ M.defaults = {
     export_csv = "gE",
     export_markdown = "gm",
     refresh = "r",
+    next_tab = "<Right>",
+    prev_tab = "<Left>",
     close = { "q", "<Esc>" },
   },
 }

@@ -342,6 +342,7 @@ function M.render_help(view)
     { k = format_keys(km.export_csv), d = "Export issue list to CSV" },
     { k = format_keys(km.export_markdown), d = "Export issue to Markdown file" },
     { k = format_keys(km.refresh), d = "Refresh current view" },
+    { k = format_keys(km.next_tab) .. " / " .. format_keys(km.prev_tab), d = "Cycle tabs" },
     { k = format_keys(km.help), d = "Show this Help" },
     { k = format_keys(km.close), d = "Close Board" },
   }

@@ -69,10 +69,20 @@ end
 
 ---@param node table
 ---@return string
+local html_entities = {
+  ["&amp;"] = "&", ["&lt;"] = "<", ["&gt;"] = ">",
+  ["&quot;"] = '"', ["&#39;"] = "'", ["&apos;"] = "'",
+  ["&nbsp;"] = " ",
+}
+
+local function decode_entities(str)
+  return (str:gsub("&%w+;", html_entities):gsub("&#(%d+);", function(n) return string.char(tonumber(n)) end))
+end
+
 local function parse_adf(node)
   if not node or node == vim.NIL then return "" end
   if node.type == "text" then
-    local text = node.text or ""
+    local text = decode_entities(node.text or "")
     if node.marks then
       for _, mark in ipairs(node.marks) do
         if mark.type == "strong" then text = "**" .. text .. "**" end

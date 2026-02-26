@@ -261,7 +261,7 @@ local function wrap_text(text, width)
         local break_at = width
         local space = remaining:sub(1, width):match(".*()%s")
         if space and space > width * 0.5 then break_at = space end
-        table.insert(lines, remaining:sub(1, break_at):gsub("%s+$", ""))
+        table.insert(lines, (remaining:sub(1, break_at):gsub("%s+$", "")))
         remaining = remaining:sub(break_at + 1):gsub("^%s+", "")
       end
       if #remaining > 0 then table.insert(lines, remaining) end
@@ -365,6 +365,7 @@ function M.show_issue_details_popup(issue)
 
   local buf = api.nvim_create_buf(false, true)
   api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  api.nvim_buf_set_option(buf, "filetype", "markdown")
   api.nvim_buf_set_option(buf, "modifiable", false)
   api.nvim_buf_set_option(buf, "bufhidden", "wipe")
 

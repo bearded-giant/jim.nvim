@@ -112,37 +112,48 @@ M.setup_keymaps = function()
   set_keymap(km.toggle_node, function() require("jim").toggle_node() end, opts)
   set_keymap(km.toggle_all, function() require("jim").toggle_all_nodes() end, opts)
 
+  -- skip empty lines between issues
+  local function jump_to_issue(direction)
+    local cursor = api.nvim_win_get_cursor(state.win)
+    local row = cursor[1] - 1 -- 0-indexed
+    local line_count = api.nvim_buf_line_count(state.buf)
+    local pos = row + direction
+    while pos >= 0 and pos < line_count do
+      if state.line_map[pos] then
+        api.nvim_win_set_cursor(state.win, { pos + 1, cursor[2] })
+        return
+      end
+      pos = pos + direction
+    end
+  end
+
+  for _, key in ipairs({ "j", "<Down>" }) do
+    vim.keymap.set("n", key, function() jump_to_issue(1) end, opts)
+  end
+  for _, key in ipairs({ "k", "<Up>" }) do
+    vim.keymap.set("n", key, function() jump_to_issue(-1) end, opts)
+  end
+
   -- Tab switching
   local function pick_project_for_view(view_name)
-    -- If we have multiple saved projects, always show picker to allow switching
-    if #state.my_issues_projects > 1 then
-      local current = state.project_key
-      vim.ui.select(state.my_issues_projects, {
-        prompt = view_name .. " - Select project:",
-        format_item = function(item)
-          if item == current then
-            return item .. " (current)"
-          end
-          return item
-        end,
-      }, function(choice)
-        if choice then
-          require("jim").load_view(choice, view_name)
-        end
-      end)
-    elseif #state.my_issues_projects == 1 then
-      require("jim").load_view(state.my_issues_projects[1], view_name)
-    elseif state.project_key and state.project_key ~= "" then
-      -- No saved projects but have current context
-      require("jim").load_view(state.project_key, view_name)
-    else
-      -- No saved projects, prompt for input
-      vim.ui.input({ prompt = "Project key for " .. view_name .. ": " }, function(input)
-        if input and input ~= "" then
-          require("jim").load_view(input:upper(), view_name)
-        end
-      end)
-    end
+    local projects = state.my_issues_projects or {}
+    local default = state.project_key or ""
+
+    vim.ui.input({
+      prompt = view_name .. " - Project key: ",
+      default = default,
+      completion = "customlist,v:lua._jim_complete_projects",
+    }, function(input)
+      if not input or input == "" then return end
+      require("jim").load_view(input:upper(), view_name)
+    end)
+  end
+
+  _G._jim_complete_projects = function(arg_lead)
+    local projects = state.my_issues_projects or {}
+    if arg_lead == "" then return projects end
+    local lead = arg_lead:upper()
+    return vim.tbl_filter(function(p) return p:upper():find(lead, 1, true) end, projects)
   end
 
   set_keymap(km.my_issues, function()
@@ -166,6 +177,42 @@ M.setup_keymaps = function()
   set_keymap(km.yank_key, function() require("jim").yank_key() end, opts)
   set_keymap(km.export_csv, function() require("jim").export_csv() end, opts)
   set_keymap(km.export_markdown, function() require("jim").export_markdown() end, opts)
+
+  -- tab cycling with arrow keys
+  local tab_order = { "My Issues", "JQL", "Active Sprint", "Backlog", "Help" }
+
+  local function cycle_tab(direction)
+    local current = state.current_view or "Help"
+    local idx = 1
+    for i, name in ipairs(tab_order) do
+      if name == current then idx = i break end
+    end
+    idx = idx + direction
+    if idx < 1 then idx = #tab_order end
+    if idx > #tab_order then idx = 1 end
+    local target = tab_order[idx]
+
+    if target == "My Issues" then
+      if #state.my_issues_projects > 0 then
+        require("jim").load_my_issues_view()
+      else
+        vim.notify("No projects configured. Press E to edit projects.", vim.log.levels.WARN)
+      end
+    elseif target == "JQL" then
+      if state.custom_jql and state.custom_jql ~= "" then
+        require("jim").load_view(state.project_key, "JQL")
+      else
+        require("jim").prompt_jql()
+      end
+    elseif target == "Active Sprint" or target == "Backlog" then
+      pick_project_for_view(target)
+    elseif target == "Help" then
+      require("jim").load_view(state.project_key, "Help")
+    end
+  end
+
+  set_keymap(km.next_tab, function() cycle_tab(1) end, opts)
+  set_keymap(km.prev_tab, function() cycle_tab(-1) end, opts)
 
   -- Issue actions
   set_keymap(km.change_status, function() require("jim").change_status() end, opts)
