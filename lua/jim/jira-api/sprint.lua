@@ -37,7 +37,15 @@ local function fetch_issues_recursive(project, jql, callback)
       end
 
       if not result or not result.issues then
-        if callback then callback(all_issues, nil) end
+        if result and result.errorMessages and #result.errorMessages > 0 then
+          if callback then callback(nil, table.concat(result.errorMessages, "; ")) end
+        elseif result and result.errors then
+          local msgs = {}
+          for k, v in pairs(result.errors) do table.insert(msgs, k .. ": " .. v) end
+          if callback then callback(nil, table.concat(msgs, "; ")) end
+        else
+          if callback then callback(all_issues, nil) end
+        end
         return
       end
 
@@ -45,10 +53,16 @@ local function fetch_issues_recursive(project, jql, callback)
         local fields = issue.fields
 
         local status = safe_get(fields, "status", "name") or "Unknown"
+        local status_category = nil
+        if is_valid(fields.status) and is_valid(fields.status.statusCategory) then
+          status_category = fields.status.statusCategory.name
+        end
         local parent_key = safe_get(fields, "parent", "key")
         local priority = safe_get(fields, "priority", "name") or "None"
         local assignee = safe_get(fields, "assignee", "displayName") or "Unassigned"
         local issue_type = safe_get(fields, "issuetype", "name") or "Task"
+        local reporter = safe_get(fields, "reporter", "displayName") or "Unknown"
+        local created = is_valid(fields.created) and fields.created or nil
 
         local time_spent = nil
         local time_estimate = nil
@@ -73,7 +87,10 @@ local function fetch_issues_recursive(project, jql, callback)
           time_spent = time_spent,
           time_estimate = time_estimate,
           type = issue_type,
+          reporter = reporter,
+          created = created,
           story_points = story_points,
+          status_category = status_category,
         })
       end
 

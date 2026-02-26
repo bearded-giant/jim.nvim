@@ -31,22 +31,20 @@ local function curl_request(method, endpoint, data, callback)
   local url = env.base .. endpoint
   local auth = env.email .. ":" .. env.token
 
-  -- Build curl command
-  local cmd = string.format(
-    'curl -s -X %s -H "Content-Type: application/json" -H "Accept: application/json" -u "%s" ',
-    method,
-    auth
-  )
+  local cmd = {
+    "curl", "-s",
+    "-X", method,
+    "-H", "Content-Type: application/json",
+    "-H", "Accept: application/json",
+    "-u", auth,
+  }
 
   if data then
-    local json_data = vim.json.encode(data)
-    -- Escape quotes for shell
-    json_data = json_data:gsub('"', '\\"')
-    cmd = cmd .. string.format('-d "%s" ',
-      json_data)
+    table.insert(cmd, "-d")
+    table.insert(cmd, vim.json.encode(data))
   end
 
-  cmd = cmd .. string.format('"%s"', url)
+  table.insert(cmd, url)
 
   local stdout = {}
   local stderr = {}
@@ -90,7 +88,7 @@ end
 function M.search_issues(jql, page_token, max_results, fields, callback, project_key)
   local p_config = config.get_project_config(project_key)
   local story_point_field = p_config.story_point_field
-  fields = fields or { "summary", "status", "parent", "priority", "assignee", "timespent", "timeoriginalestimate", "issuetype", story_point_field }
+  fields = fields or { "summary", "status", "parent", "priority", "assignee", "reporter", "created", "timespent", "timeoriginalestimate", "issuetype", story_point_field }
 
   local data = {
     jql = jql,

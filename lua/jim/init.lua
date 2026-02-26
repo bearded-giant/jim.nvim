@@ -164,6 +164,8 @@ M.setup_keymaps = function()
   set_keymap(km.read_task, function() require("jim").read_task() end, opts)
   set_keymap(km.open_browser, function() require("jim").open_in_browser() end, opts)
   set_keymap(km.yank_key, function() require("jim").yank_key() end, opts)
+  set_keymap(km.export_csv, function() require("jim").export_csv() end, opts)
+  set_keymap(km.export_markdown, function() require("jim").export_markdown() end, opts)
 
   -- Issue actions
   set_keymap(km.change_status, function() require("jim").change_status() end, opts)
@@ -233,6 +235,11 @@ M.load_view = function(project_key, view_name)
         ui.setup_static_highlights()
       end
 
+      -- client-side filtering for JQL view (don't mutate the user's query)
+      if view_name == "JQL" and state.hide_resolved and issues then
+        issues = vim.tbl_filter(function(i) return i.status_category ~= "Done" end, issues)
+      end
+
       if not issues or #issues == 0 then
         state.tree = {}
         render.clear(state.buf)
@@ -272,11 +279,7 @@ M.load_view = function(project_key, view_name)
     fetch_fn = function(pk, cb) sprint.get_backlog_issues(pk, filter, cb) end
   elseif view_name == "JQL" then
     fetch_fn = function(pk, cb)
-      local jql = state.custom_jql
-      if state.hide_resolved and jql and not jql:lower():find("statuscategory") then
-        jql = "(" .. jql .. ") AND statusCategory != Done"
-      end
-      sprint.get_issues_by_jql(pk, jql, cb)
+      sprint.get_issues_by_jql(pk, state.custom_jql, cb)
     end
   end
 
@@ -400,6 +403,107 @@ M.read_task = function()
       end
 
       ui.open_markdown_view("Jim: " .. issue.key, lines)
+    end)
+  end)
+end
+
+M.export_csv = function()
+  if not state.tree or #state.tree == 0 then
+    vim.notify("No issues to export", vim.log.levels.WARN)
+    return
+  end
+
+  local rows = {}
+  local function collect(nodes)
+    for _, node in ipairs(nodes) do
+      local created = node.created or ""
+      if created:find("T") then created = created:match("^([^T]+)") or created end
+      table.insert(rows, string.format("%s,%s,%s,%s,%s,%s,%s",
+        node.key or "",
+        '"' .. (node.summary or ""):gsub('"', '""') .. '"',
+        node.status or "",
+        node.type or "",
+        node.assignee or "Unassigned",
+        node.reporter or "Unknown",
+        created
+      ))
+      if node.children then collect(node.children) end
+    end
+  end
+
+  table.insert(rows, "key,summary,status,type,assignee,reporter,created")
+  collect(state.tree)
+
+  local filename = "jim_export.csv"
+  local f = io.open(filename, "w")
+  if not f then
+    vim.notify("Failed to write " .. filename, vim.log.levels.ERROR)
+    return
+  end
+  f:write(table.concat(rows, "\n") .. "\n")
+  f:close()
+  vim.notify("Exported " .. (#rows - 1) .. " issues to " .. filename, vim.log.levels.INFO)
+end
+
+M.export_markdown = function()
+  local cursor = api.nvim_win_get_cursor(state.win)
+  local row = cursor[1] - 1
+  local node = state.line_map[row]
+  if not node or not node.key then return end
+
+  ui.start_loading("Fetching full details for " .. node.key .. "...")
+  local jira_api = require("jim.jira-api.api")
+  jira_api.get_issue(node.key, function(issue, err)
+    vim.schedule(function()
+      ui.stop_loading()
+      if err then
+        vim.notify("Error: " .. err, vim.log.levels.ERROR)
+        return
+      end
+
+      local fields = issue.fields or {}
+      local lines = {}
+      table.insert(lines, "# " .. issue.key .. ": " .. (fields.summary or ""))
+      table.insert(lines, "")
+      table.insert(lines, "**Status**: " .. (fields.status and fields.status.name or "Unknown"))
+      table.insert(lines, "**Assignee**: " .. (fields.assignee and fields.assignee.displayName or "Unassigned"))
+      table.insert(lines, "**Reporter**: " .. (fields.reporter and fields.reporter.displayName or "Unknown"))
+      table.insert(lines, "**Priority**: " .. (fields.priority and fields.priority.name or "None"))
+      table.insert(lines, "**Created**: " .. (fields.created or ""))
+      table.insert(lines, "")
+      table.insert(lines, "## Description")
+      table.insert(lines, "")
+
+      if fields.description then
+        local md = util.adf_to_markdown(fields.description)
+        for line in md:gmatch("[^\r\n]+") do
+          table.insert(lines, line)
+        end
+      else
+        table.insert(lines, "_No description_")
+      end
+
+      local p_config = config.get_project_config(state.project_key)
+      local ac_field = p_config.acceptance_criteria_field
+      if ac_field and fields[ac_field] then
+        table.insert(lines, "")
+        table.insert(lines, "## Acceptance Criteria")
+        table.insert(lines, "")
+        local ac_md = util.adf_to_markdown(fields[ac_field])
+        for line in ac_md:gmatch("[^\r\n]+") do
+          table.insert(lines, line)
+        end
+      end
+
+      local filename = issue.key .. ".md"
+      local f = io.open(filename, "w")
+      if not f then
+        vim.notify("Failed to write " .. filename, vim.log.levels.ERROR)
+        return
+      end
+      f:write(table.concat(lines, "\n") .. "\n")
+      f:close()
+      vim.notify("Exported to " .. filename, vim.log.levels.INFO)
     end)
   end)
 end

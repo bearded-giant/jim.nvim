@@ -44,6 +44,8 @@ M.defaults = {
     close_issue = "d",
     toggle_resolved = "x",
     yank_key = "y",
+    export_csv = "gE",
+    export_markdown = "gm",
     refresh = "r",
     close = { "q", "<Esc>" },
   },
