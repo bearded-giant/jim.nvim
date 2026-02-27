@@ -182,15 +182,19 @@ M.setup_keymaps = function()
   local tab_order = { "My Issues", "JQL", "Active Sprint", "Backlog", "Help" }
 
   local function cycle_tab(direction)
+    local visible_order = vim.tbl_filter(function(name)
+      return name == "My Issues" or name == "Help" or not state.hidden_tabs[name]
+    end, tab_order)
+
     local current = state.current_view or "Help"
     local idx = 1
-    for i, name in ipairs(tab_order) do
+    for i, name in ipairs(visible_order) do
       if name == current then idx = i break end
     end
     idx = idx + direction
-    if idx < 1 then idx = #tab_order end
-    if idx > #tab_order then idx = 1 end
-    local target = tab_order[idx]
+    if idx < 1 then idx = #visible_order end
+    if idx > #visible_order then idx = 1 end
+    local target = visible_order[idx]
 
     if target == "My Issues" then
       if #state.my_issues_projects > 0 then
@@ -213,6 +217,10 @@ M.setup_keymaps = function()
 
   set_keymap(km.next_tab, function() cycle_tab(1) end, opts)
   set_keymap(km.prev_tab, function() cycle_tab(-1) end, opts)
+  set_keymap(km.toggle_tabs, function() require("jim").toggle_tab_visibility() end, opts)
+
+  set_keymap(km.sort_column, function() require("jim").sort_by_column() end, opts)
+  set_keymap(km.toggle_columns, function() require("jim").toggle_columns() end, opts)
 
   -- Issue actions
   set_keymap(km.assign_user, function() require("jim").assign_user() end, opts)
@@ -1109,6 +1117,145 @@ end
 --     end)
 --   end)
 -- end
+
+M.sort_by_column = function()
+  local cols = config.options.columns or {}
+  local items = {}
+  for _, col in ipairs(cols) do
+    table.insert(items, { field = col.field, label = col.header or col.field })
+  end
+
+  vim.ui.select(items, {
+    prompt = "Sort by:",
+    format_item = function(item)
+      local indicator = ""
+      if state.sort_column == item.field then
+        indicator = state.sort_direction == "asc" and " ▲" or " ▼"
+      end
+      return item.label .. indicator
+    end,
+  }, function(choice)
+    if not choice then return end
+
+    if state.sort_column == choice.field then
+      if state.sort_direction == "asc" then
+        state.sort_direction = "desc"
+      elseif state.sort_direction == "desc" then
+        state.sort_column = nil
+        state.sort_direction = nil
+      end
+    else
+      state.sort_column = choice.field
+      state.sort_direction = "asc"
+    end
+
+    if state.sort_column then
+      util.sort_tree(state.tree, state.sort_column, state.sort_direction)
+    end
+
+    render.clear(state.buf)
+    render.render_issue_tree(state.tree, state.current_view)
+  end)
+end
+
+M.toggle_columns = function()
+  local available = {
+    { field = "key", header = "Key" },
+    { field = "summary", header = "Title" },
+    { field = "assignee", header = "Assignee" },
+    { field = "time", header = "Time" },
+    { field = "status", header = "Status" },
+    { field = "priority", header = "Priority" },
+    { field = "reporter", header = "Reporter" },
+    { field = "story_points", header = "Points" },
+    { field = "type", header = "Type" },
+  }
+
+  local active = {}
+  for _, c in ipairs(config.options.columns or {}) do
+    active[c.field] = true
+  end
+
+  local function show_picker()
+    vim.ui.select(available, {
+      prompt = "Toggle columns (Esc to finish):",
+      format_item = function(item)
+        local marker = active[item.field] and "[x]" or "[ ]"
+        return marker .. " " .. item.header
+      end,
+    }, function(choice)
+      if not choice then
+        local new_cols = {}
+        for _, a in ipairs(available) do
+          if active[a.field] then
+            local width = 12
+            if a.field == "summary" then width = 60
+            elseif a.field == "status" then width = 14
+            elseif a.field == "time" then width = 10
+            end
+            table.insert(new_cols, { field = a.field, header = a.header, width = width })
+          end
+        end
+        config.options.columns = new_cols
+        render.clear(state.buf)
+        render.render_issue_tree(state.tree, state.current_view)
+        return
+      end
+
+      if active[choice.field] then
+        active[choice.field] = nil
+      else
+        active[choice.field] = true
+      end
+      show_picker()
+    end)
+  end
+
+  show_picker()
+end
+
+M.toggle_tab_visibility = function()
+  local hideable = { "JQL", "Active Sprint", "Backlog" }
+
+  local function show_picker()
+    local items = {}
+    for _, name in ipairs(hideable) do
+      local hidden = state.hidden_tabs[name] or false
+      table.insert(items, { name = name, hidden = hidden })
+    end
+
+    vim.ui.select(items, {
+      prompt = "Toggle tab visibility (Esc to finish):",
+      format_item = function(item)
+        local marker = item.hidden and "[ ]" or "[x]"
+        return marker .. " " .. item.name
+      end,
+    }, function(choice)
+      if not choice then
+        state.save()
+        if state.hidden_tabs[state.current_view] then
+          if #state.my_issues_projects > 0 then
+            M.load_my_issues_view()
+          else
+            M.load_view(state.project_key, "Help")
+          end
+        else
+          render.clear(state.buf)
+          render.render_issue_tree(state.tree, state.current_view)
+        end
+        return
+      end
+      if state.hidden_tabs[choice.name] then
+        state.hidden_tabs[choice.name] = nil
+      else
+        state.hidden_tabs[choice.name] = true
+      end
+      show_picker()
+    end)
+  end
+
+  show_picker()
+end
 
 M.open = function(project_key)
   -- If already open, just focus

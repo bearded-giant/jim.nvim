@@ -50,7 +50,17 @@ M.defaults = {
     refresh = "r",
     next_tab = "<Right>",
     prev_tab = "<Left>",
+    toggle_tabs = "gT",
+    sort_column = "gs",
+    toggle_columns = "gc",
     close = { "q", "<Esc>" },
+  },
+  columns = {
+    { field = "key", header = "Key", width = 12 },
+    { field = "summary", header = "Title", width = 60 },
+    { field = "assignee", header = "Assignee", width = 12 },
+    { field = "time", header = "Time", width = 10 },
+    { field = "status", header = "Status", width = 14 },
   },
 }
 

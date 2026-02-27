@@ -20,6 +20,10 @@ Since Jira UX is a time sucking disaster for dev productivity....
 - **Markdown View** - Read full issue description and acceptance criteria
 - **Browser Integration** - Open issues in your browser
 - **Persistent State** - Saved projects and preferences across sessions
+- **Assign Issues** - Assign, reassign, or unassign issues via picker
+- **Tab Visibility** - Hide/show tabs (Sprint, Backlog, JQL) at runtime, persisted across sessions
+- **Column Sorting** - Sort issue lists by any column (key, title, assignee, status, time, points)
+- **Configurable Columns** - Add/remove visible columns at runtime
 - **Fully Configurable Keymaps** - All keybindings can be customized
 
 ## Requirements
@@ -102,11 +106,26 @@ require("jim").setup({
     create_story = "c",
     close_issue = "d",
     toggle_resolved = "x",
+    assign_user = "a",
     yank_key = "y",
     export_csv = "gE",
     export_markdown = "gm",
     refresh = "r",
+    next_tab = "<Right>",
+    prev_tab = "<Left>",
+    toggle_tabs = "gT",
+    sort_column = "gs",
+    toggle_columns = "gc",
     close = { "q", "<Esc>" },
+  },
+  columns = {
+    -- Default visible columns. Add/remove/reorder as needed.
+    -- Available fields: key, summary, assignee, time, status, priority, reporter, story_points, type
+    { field = "key", header = "Key", width = 12 },
+    { field = "summary", header = "Title", width = 60 },
+    { field = "assignee", header = "Assignee", width = 12 },
+    { field = "time", header = "Time", width = 10 },
+    { field = "status", header = "Status", width = 14 },
   },
 })
 ```
@@ -155,6 +174,8 @@ All keymaps are configurable via `setup()`. Defaults shown below.
 | `H` | Show help                                      |
 | `E` | Edit saved projects                            |
 | `r` | Refresh current view                           |
+| `Right` / `Left` | Cycle tabs                          |
+| `gT` | Toggle tab visibility (hide/show tabs)         |
 
 ### Filtering
 
@@ -172,12 +193,15 @@ All keymaps are configurable via `setup()`. Defaults shown below.
 | `c`  | Create new story (prompts summary + description) |
 | `d`  | Close issue (transition to Done)                 |
 | `x`  | Toggle show/hide resolved issues                 |
+| `a`  | Assign issue to user                             |
 | `K`  | Show issue details (fetches full data)           |
 | `m`  | Read full task as markdown                       |
 | `y`  | Copy issue key to clipboard                      |
 | `gx` | Open issue in browser                            |
 | `gE` | Export current view to CSV                       |
 | `gm` | Export issue under cursor to Markdown file       |
+| `gs` | Sort by column                                   |
+| `gc` | Toggle visible columns                           |
 
 ## Views
 
@@ -242,6 +266,30 @@ For direct status changes without the menu, use `s`.
 
 **Note:** Attachments and rich formatting require the browser (`gx`).
 
+### Tab Visibility
+
+Press `gT` to toggle which tabs appear in the header. The picker shows JQL, Active Sprint, and Backlog with `[x]` (visible) or `[ ]` (hidden) markers. Select a tab to toggle it, then press `Esc` to apply. My Issues and Help are always visible.
+
+Hidden tabs are persisted to `jim_nvim.json` so your preference carries across sessions. If you hide the tab you're currently viewing, the plugin auto-switches to My Issues.
+
+Tab cycling with `Right`/`Left` also skips hidden tabs.
+
+### Sorting
+
+Press `gs` to sort the issue list by a column. A picker shows the available columns -- selecting one sorts ascending. Selecting the same column again flips to descending. A third selection clears the sort and returns to the original order. The current sort column and direction are shown in the column header row with `▲` / `▼` indicators.
+
+Sorting applies to root-level issues only. Children stay grouped under their parent.
+
+### Configurable Columns
+
+Press `gc` to add or remove columns from the issue list at runtime. The picker shows available fields (Key, Title, Assignee, Time, Status, Priority, Reporter, Points, Type) with `[x]`/`[ ]` markers. Toggle fields on/off, then press `Esc` to apply.
+
+Column widths and defaults can also be set in `setup()` via the `columns` config. The column header row at the top of the issue list reflects the active configuration.
+
+### Assigning Issues
+
+Press `a` on any issue to open the assignment picker. It fetches assignable users from Jira (cached for 24 hours per project) and shows them in a `vim.ui.select` picker. The current assignee is marked. Select "Unassigned" to remove the assignee.
+
 ## Display
 
 Each issue line shows:
@@ -264,6 +312,7 @@ The plugin saves the following to `~/.local/share/nvim/jim_nvim.json`:
 
 - `my_issues_projects` - Your configured project keys for My Issues
 - `hide_resolved` - Whether to show/hide resolved issues
+- `hidden_tabs` - Which tabs are hidden from the header
 - `last_jql` - Your last executed JQL query (restored on next session)
 
 ## License

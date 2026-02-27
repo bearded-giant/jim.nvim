@@ -141,4 +141,50 @@ M.adf_to_markdown = function(adf)
   return parse_adf(adf)
 end
 
+---@param tree JiraIssueNode[]
+---@param column string
+---@param direction string "asc" or "desc"
+---@return JiraIssueNode[]
+M.sort_tree = function(tree, column, direction)
+  if not column or not tree or #tree == 0 then return tree end
+
+  local field_map = {
+    key = "key",
+    summary = "summary",
+    assignee = "assignee",
+    status = "status",
+    time = "time_spent",
+    points = "story_points",
+  }
+
+  local field = field_map[column] or column
+
+  table.sort(tree, function(a, b)
+    local va = a[field]
+    local vb = b[field]
+
+    if va == nil and vb == nil then return false end
+    if va == nil then return direction == "asc" end
+    if vb == nil then return direction ~= "asc" end
+
+    if type(va) == "userdata" and type(vb) == "userdata" then return false end
+    if type(va) == "userdata" then return direction == "asc" end
+    if type(vb) == "userdata" then return direction ~= "asc" end
+
+    -- mixed types: coerce to string for safe comparison
+    if type(va) ~= type(vb) then
+      va = tostring(va)
+      vb = tostring(vb)
+    end
+
+    if direction == "desc" then
+      return va > vb
+    else
+      return va < vb
+    end
+  end)
+
+  return tree
+end
+
 return M

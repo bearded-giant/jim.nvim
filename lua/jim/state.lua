@@ -18,6 +18,10 @@ local state = {
   current_filter = nil,
   current_user_account_id = nil,
   assignable_users_cache = {},
+  hidden_tabs = {},
+  sort_column = nil,
+  sort_direction = nil,
+  column_header_row = nil,
 }
 
 function state.get_assignable_users(project_key)
@@ -39,6 +43,7 @@ function state.save()
     my_issues_projects = state.my_issues_projects,
     hide_resolved = state.hide_resolved,
     last_jql = state.custom_jql,
+    hidden_tabs = state.hidden_tabs,
   }
   local json = vim.json.encode(data)
   local file = io.open(data_path, "w")
@@ -60,6 +65,7 @@ function state.load()
         state.hide_resolved = data.hide_resolved
       end
       state.custom_jql = data.last_jql
+      state.hidden_tabs = data.hidden_tabs or {}
     end
   end
 end

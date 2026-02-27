@@ -155,6 +155,14 @@ end
 ---@param row number
 ---@return string, table[]
 local function render_issue_line(node, depth, row)
+  local cols = require("jim.config").options.columns or {}
+  local col_widths = {}
+  for _, c in ipairs(cols) do col_widths[c.field] = c.width end
+  local TITLE_W = col_widths["summary"] or MAX.TITLE
+  local ASSIGNEE_W = col_widths["assignee"] or MAX.ASSIGNEE
+  local TIME_W = col_widths["time"] or MAX.TIME
+  local STATUS_W = col_widths["status"] or MAX.STATUS
+
   local indent = string.rep("    ", depth - 1)
   local icon, icon_hl = get_issue_icon(node)
 
@@ -166,14 +174,14 @@ local function render_issue_line(node, depth, row)
   local is_root = depth == 1
 
   local key = node.key or ""
-  local title = truncate(node.summary or "", MAX.TITLE)
+  local title = truncate(node.summary or "", TITLE_W)
   local points = node.story_points or node.points
   local pts = ""
   if is_root and points ~= nil and points ~= vim.NIL then
     pts = string.format(" 󰫢 %s", points)
   end
 
-  local status = truncate(node.status or "Unknown", MAX.STATUS)
+  local status = truncate(node.status or "Unknown", STATUS_W)
 
   local highlights = {}
   local col = #indent
@@ -204,9 +212,9 @@ local function render_issue_line(node, depth, row)
     bar_display = string.rep(" ", bar_width)
   end
 
-  local time_pad = string.rep(" ", MAX.TIME - vim.fn.strdisplaywidth(time_str))
-  local ass_pad = string.rep(" ", MAX.ASSIGNEE - vim.fn.strdisplaywidth(assignee_str))
-  local status_pad = string.rep(" ", MAX.STATUS - vim.fn.strdisplaywidth(status))
+  local time_pad = string.rep(" ", TIME_W - vim.fn.strdisplaywidth(time_str))
+  local ass_pad = string.rep(" ", ASSIGNEE_W - vim.fn.strdisplaywidth(assignee_str))
+  local status_pad = string.rep(" ", STATUS_W - vim.fn.strdisplaywidth(status))
   local status_str = " " .. status .. status_pad .. " "
 
   local right_part = string.format("%s  %s%s  %s%s  %s", bar_display, time_str, time_pad, assignee_str, ass_pad, status_str)
@@ -264,6 +272,48 @@ local function format_keys(keys)
   return keys
 end
 
+local function render_column_header(row)
+  local cols = require("jim.config").options.columns or {}
+  local header = "  "
+  local hls = {}
+
+  local left_pad = "       "
+  header = left_pad
+
+  for _, col in ipairs(cols) do
+    local label = col.header or col.field
+    local width = col.width or 12
+
+    if state.sort_column == col.field then
+      if state.sort_direction == "asc" then
+        label = label .. " ▲"
+      else
+        label = label .. " ▼"
+      end
+    end
+
+    local padded = label .. string.rep(" ", math.max(0, width - vim.fn.strdisplaywidth(label)))
+    local start_col = #header
+    header = header .. padded .. "  "
+
+    table.insert(hls, {
+      start_col = start_col,
+      end_col = start_col + #padded,
+      hl = state.sort_column == col.field and "Title" or "Comment",
+    })
+  end
+
+  api.nvim_buf_set_lines(state.buf, row, row + 1, false, { header })
+  for _, h in ipairs(hls) do
+    api.nvim_buf_set_extmark(state.buf, state.ns, row, h.start_col, {
+      end_col = h.end_col,
+      hl_group = h.hl,
+    })
+  end
+
+  state.column_header_row = row
+end
+
 local function render_header(view)
   local config = require("jim.config")
   local km = config.options.keymaps
@@ -276,10 +326,17 @@ local function render_header(view)
     { name = "Help", key = format_keys(km.help) },
   }
 
+  local visible_tabs = {}
+  for _, tab in ipairs(tabs) do
+    if tab.name == "My Issues" or tab.name == "Help" or not state.hidden_tabs[tab.name] then
+      table.insert(visible_tabs, tab)
+    end
+  end
+
   local header = "  "
   local hls = {}
 
-  for _, tab in ipairs(tabs) do
+  for _, tab in ipairs(visible_tabs) do
     local is_active = (view == tab.name)
     local tab_str = string.format(" %s (%s) ", tab.name, tab.key)
     local start_col = #header
@@ -344,6 +401,9 @@ function M.render_help(view)
     { k = format_keys(km.export_markdown), d = "Export issue to Markdown file" },
     { k = format_keys(km.refresh), d = "Refresh current view" },
     { k = format_keys(km.next_tab) .. " / " .. format_keys(km.prev_tab), d = "Cycle tabs" },
+    { k = format_keys(km.toggle_tabs), d = "Toggle tab visibility" },
+    { k = format_keys(km.sort_column), d = "Sort by column" },
+    { k = format_keys(km.toggle_columns), d = "Toggle visible columns" },
     { k = format_keys(km.help), d = "Show this Help" },
     { k = format_keys(km.close), d = "Close Board" },
   }
@@ -393,6 +453,8 @@ function M.render_issue_tree(issues, view, depth, row)
     if view then
       render_header(view)
     end
+    render_column_header(row)
+    row = row + 1
   end
 
   for i, node in ipairs(issues) do
