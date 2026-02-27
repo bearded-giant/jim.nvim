@@ -346,9 +346,11 @@ M.load_view = function(project_key, view_name)
 end
 
 M.prompt_jql = function()
-  vim.ui.input({ prompt = "JQL: ", default = state.custom_jql or "" }, function(input)
+  ui.open_text_input("JQL", { default = state.custom_jql or "", height = 6 }, function(input)
     if not input or input == "" then return end
-    state.custom_jql = input
+    -- collapse to single line for JQL
+    local jql = input:gsub("\n", " "):gsub("%s+", " ")
+    state.custom_jql = jql
     state.save()
     M.load_view(state.project_key, "JQL")
   end)
@@ -693,7 +695,7 @@ M._edit_summary = function(node)
 end
 
 M._append_description = function(node)
-  vim.ui.input({ prompt = "Append to description: " }, function(input)
+  ui.open_text_input("Append to " .. node.key .. " description", { filetype = "markdown" }, function(input)
     if not input or input == "" then return end
 
     local jira_api = require("jim.jira-api.api")
@@ -873,7 +875,7 @@ M._prompt_and_create_story = function(project_key)
   vim.ui.input({ prompt = "Summary: " }, function(summary)
     if not summary or summary == "" then return end
 
-    vim.ui.input({ prompt = "Description (optional): " }, function(description)
+    ui.open_text_input("Description (optional)", { filetype = "markdown" }, function(description)
       local jira_api = require("jim.jira-api.api")
 
       local function do_create(account_id)
@@ -906,7 +908,6 @@ M._prompt_and_create_story = function(project_key)
         end)
       end
 
-      -- Get current user's account ID (cached)
       if state.current_user_account_id then
         do_create(state.current_user_account_id)
       else
