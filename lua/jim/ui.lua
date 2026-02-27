@@ -168,10 +168,15 @@ function M.create_window()
   api.nvim_create_autocmd("BufWipeout", {
     buffer = state.buf,
     callback = function()
-      if state.dim_win and api.nvim_win_is_valid(state.dim_win) then
-        api.nvim_win_close(state.dim_win, true)
-        state.dim_win = nil
+      -- close all floating windows (popups, pickers, spinner)
+      M.stop_loading()
+      for _, w in ipairs(api.nvim_list_wins()) do
+        local ok, conf = pcall(api.nvim_win_get_config, w)
+        if ok and conf.relative and conf.relative ~= "" then
+          pcall(api.nvim_win_close, w, true)
+        end
       end
+      state.dim_win = nil
       if resize_autocmd_id then
         api.nvim_del_autocmd(resize_autocmd_id)
         resize_autocmd_id = nil

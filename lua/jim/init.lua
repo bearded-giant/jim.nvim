@@ -880,58 +880,89 @@ M.close_issue = function()
 end
 
 M._prompt_and_create_story = function(project_key)
-  vim.ui.input({ prompt = "Summary: " }, function(summary)
-    if not summary or summary == "" then return end
+  -- single buffer form: title above ---, description below
+  ui.open_text_input("New Story (" .. project_key .. ") | title above --- | description below", {
+    filetype = "markdown",
+    default = "\n---\n",
+  }, function(input)
+    if not input then return end
 
-    ui.open_text_input("Description (optional)", { filetype = "markdown" }, function(description)
-      local jira_api = require("jim.jira-api.api")
+    local lines = vim.split(input, "\n", { plain = true })
+    local summary_parts = {}
+    local desc_lines = {}
+    local past_separator = false
 
-      local function do_create(account_id)
-        ui.start_loading("Creating story...")
-
-        local opts = {
-          description = description,
-          assignee_account_id = account_id,
-        }
-
-        jira_api.create_issue(project_key, summary, "Story", opts, function(result, err)
-          vim.schedule(function()
-            ui.stop_loading()
-            if err then
-              vim.notify("Failed to create: " .. err, vim.log.levels.ERROR)
-              return
-            end
-            vim.notify("Created " .. result.key .. ": " .. summary, vim.log.levels.INFO)
-
-            local cache_key = get_cache_key(state.project_key, state.current_view)
-            state.cache[cache_key] = nil
-            if state.current_view == "Backlog" then
-              M.load_view(state.project_key, state.current_view)
-            elseif state.current_view == "My Issues" then
-              local my_cache_key = get_cache_key(nil, "My Issues")
-              state.cache[my_cache_key] = nil
-              M.load_my_issues_view()
-            end
-          end)
-        end)
-      end
-
-      if state.current_user_account_id then
-        do_create(state.current_user_account_id)
+    for _, line in ipairs(lines) do
+      if not past_separator then
+        if line:match("^%-%-%-") then
+          past_separator = true
+        else
+          table.insert(summary_parts, line)
+        end
       else
-        jira_api.get_myself(function(user, err)
-          vim.schedule(function()
-            if err or not user or not user.accountId then
-              vim.notify("Could not get current user, creating unassigned", vim.log.levels.WARN)
-              do_create(nil)
-              return
-            end
-            state.current_user_account_id = user.accountId
-            do_create(user.accountId)
-          end)
-        end)
+        table.insert(desc_lines, line)
       end
-    end)
+    end
+
+    local summary = vim.trim(table.concat(summary_parts, " "))
+    local description = vim.trim(table.concat(desc_lines, "\n"))
+
+    if summary == "" then
+      vim.notify("Title is required", vim.log.levels.WARN)
+      return
+    end
+    if description == "" then
+      vim.notify("Description is required", vim.log.levels.WARN)
+      return
+    end
+
+    local jira_api = require("jim.jira-api.api")
+
+    local function do_create(account_id)
+      ui.start_loading("Creating story...")
+
+      local opts = {
+        description = description,
+        assignee_account_id = account_id,
+      }
+
+      jira_api.create_issue(project_key, summary, "Story", opts, function(result, err)
+        vim.schedule(function()
+          ui.stop_loading()
+          if err then
+            vim.notify("Failed to create: " .. err, vim.log.levels.ERROR)
+            return
+          end
+          vim.notify("Created " .. result.key .. ": " .. summary, vim.log.levels.INFO)
+
+          local cache_key = get_cache_key(state.project_key, state.current_view)
+          state.cache[cache_key] = nil
+          if state.current_view == "Backlog" then
+            M.load_view(state.project_key, state.current_view)
+          elseif state.current_view == "My Issues" then
+            local my_cache_key = get_cache_key(nil, "My Issues")
+            state.cache[my_cache_key] = nil
+            M.load_my_issues_view()
+          end
+        end)
+      end)
+    end
+
+    if state.current_user_account_id then
+      do_create(state.current_user_account_id)
+    else
+      jira_api.get_myself(function(user, err)
+        vim.schedule(function()
+          if err or not user or not user.accountId then
+            vim.notify("Could not get current user, creating unassigned", vim.log.levels.WARN)
+            do_create(nil)
+            return
+          end
+          state.current_user_account_id = user.accountId
+          do_create(user.accountId)
+        end)
+      end)
+    end
   end)
 end
 
