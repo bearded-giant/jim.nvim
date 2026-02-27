@@ -169,6 +169,18 @@ function M.get_myself(callback)
   curl_request("GET", "/rest/api/3/myself", nil, callback)
 end
 
+-- Get users assignable to issues in a project
+function M.get_assignable_users(project_key, callback)
+  local endpoint = "/rest/api/3/user/assignable/search?project=" .. project_key .. "&maxResults=100"
+  curl_request("GET", endpoint, nil, function(result, err)
+    if err then
+      if callback then callback(nil, err) end
+      return
+    end
+    if callback then callback(result or {}, nil) end
+  end)
+end
+
 -- Convert plain text to ADF format
 local function text_to_adf(text)
   if not text or text == "" then

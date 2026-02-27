@@ -60,6 +60,7 @@ local function fetch_issues_recursive(project, jql, callback)
         local parent_key = safe_get(fields, "parent", "key")
         local priority = safe_get(fields, "priority", "name") or "None"
         local assignee = safe_get(fields, "assignee", "displayName") or "Unassigned"
+        local assignee_account_id = safe_get(fields, "assignee", "accountId")
         local issue_type = safe_get(fields, "issuetype", "name") or "Task"
         local reporter = safe_get(fields, "reporter", "displayName") or "Unknown"
         local created = is_valid(fields.created) and fields.created or nil
@@ -84,6 +85,7 @@ local function fetch_issues_recursive(project, jql, callback)
           parent = parent_key,
           priority = priority,
           assignee = assignee,
+          assignee_account_id = assignee_account_id,
           time_spent = time_spent,
           time_estimate = time_estimate,
           type = issue_type,
