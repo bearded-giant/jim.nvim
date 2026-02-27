@@ -17,7 +17,22 @@ local state = {
   hide_resolved = true,
   current_filter = nil,
   current_user_account_id = nil,
+  assignable_users_cache = {},
 }
+
+function state.get_assignable_users(project_key)
+  local entry = state.assignable_users_cache[project_key]
+  if not entry then return nil end
+  if os.time() - entry.fetched_at > 86400 then return nil end
+  return entry.users
+end
+
+function state.set_assignable_users(project_key, users)
+  state.assignable_users_cache[project_key] = {
+    users = users,
+    fetched_at = os.time(),
+  }
+end
 
 function state.save()
   local data = {

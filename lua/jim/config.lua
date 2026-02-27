@@ -43,6 +43,7 @@ M.defaults = {
     create_story = "c",
     close_issue = "d",
     toggle_resolved = "x",
+    assign_user = "a",
     yank_key = "y",
     export_csv = "gE",
     export_markdown = "gm",

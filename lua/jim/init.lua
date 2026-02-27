@@ -215,6 +215,7 @@ M.setup_keymaps = function()
   set_keymap(km.prev_tab, function() cycle_tab(-1) end, opts)
 
   -- Issue actions
+  set_keymap(km.assign_user, function() require("jim").assign_user() end, opts)
   set_keymap(km.change_status, function() require("jim").change_status() end, opts)
   set_keymap(km.create_story, function() require("jim").create_story() end, opts)
   set_keymap(km.close_issue, function() require("jim").close_issue() end, opts)
@@ -345,9 +346,11 @@ M.load_view = function(project_key, view_name)
 end
 
 M.prompt_jql = function()
-  vim.ui.input({ prompt = "JQL: ", default = state.custom_jql or "" }, function(input)
+  ui.open_text_input("JQL", { default = state.custom_jql or "", height = 6 }, function(input)
     if not input or input == "" then return end
-    state.custom_jql = input
+    -- collapse to single line for JQL
+    local jql = input:gsub("\n", " "):gsub("%s+", " ")
+    state.custom_jql = jql
     state.save()
     M.load_view(state.project_key, "JQL")
   end)
@@ -586,6 +589,80 @@ M.yank_key = function()
   vim.notify("Copied: " .. node.key, vim.log.levels.INFO)
 end
 
+M.assign_user = function()
+  local cursor = api.nvim_win_get_cursor(state.win)
+  local row = cursor[1] - 1
+  local node = state.line_map[row]
+  if not node or not node.key then
+    vim.notify("No issue under cursor", vim.log.levels.WARN)
+    return
+  end
+
+  local project = state.project_key or (node.key:match("^(%u+)%-"))
+
+  local function show_picker(users)
+    local items = { { accountId = nil, displayName = "Unassigned" } }
+    for _, u in ipairs(users) do
+      table.insert(items, u)
+    end
+
+    vim.ui.select(items, {
+      prompt = "Assign " .. node.key .. " to:",
+      format_item = function(item)
+        local label = item.displayName or "Unknown"
+        if item.accountId and item.accountId == node.assignee_account_id then
+          label = label .. " (current)"
+        end
+        return label
+      end,
+    }, function(choice)
+      if not choice then return end
+
+      local fields = {}
+      if choice.accountId then
+        fields.assignee = { accountId = choice.accountId }
+      else
+        fields.assignee = vim.NIL
+      end
+
+      local jira_api = require("jim.jira-api.api")
+      ui.start_loading("Assigning...")
+      jira_api.update_issue(node.key, fields, function(_, err)
+        vim.schedule(function()
+          ui.stop_loading()
+          if err then
+            vim.notify("Assignment failed: " .. err, vim.log.levels.ERROR)
+            return
+          end
+          local name = choice.displayName or "Unassigned"
+          vim.notify(node.key .. " -> " .. name, vim.log.levels.INFO)
+          refresh_current_view()
+        end)
+      end)
+    end)
+  end
+
+  local cached = state.get_assignable_users(project)
+  if cached then
+    show_picker(cached)
+    return
+  end
+
+  local jira_api = require("jim.jira-api.api")
+  ui.start_loading("Fetching assignable users...")
+  jira_api.get_assignable_users(project, function(users, err)
+    vim.schedule(function()
+      ui.stop_loading()
+      if err then
+        vim.notify("Error: " .. err, vim.log.levels.ERROR)
+        return
+      end
+      state.set_assignable_users(project, users)
+      show_picker(users)
+    end)
+  end)
+end
+
 -- Helper to refresh current view after updates
 local function refresh_current_view()
   local cache_key = get_cache_key(state.project_key, state.current_view)
@@ -618,7 +695,7 @@ M._edit_summary = function(node)
 end
 
 M._append_description = function(node)
-  vim.ui.input({ prompt = "Append to description: " }, function(input)
+  ui.open_text_input("Append to " .. node.key .. " description", { filetype = "markdown" }, function(input)
     if not input or input == "" then return end
 
     local jira_api = require("jim.jira-api.api")
@@ -798,7 +875,7 @@ M._prompt_and_create_story = function(project_key)
   vim.ui.input({ prompt = "Summary: " }, function(summary)
     if not summary or summary == "" then return end
 
-    vim.ui.input({ prompt = "Description (optional): " }, function(description)
+    ui.open_text_input("Description (optional)", { filetype = "markdown" }, function(description)
       local jira_api = require("jim.jira-api.api")
 
       local function do_create(account_id)
@@ -831,7 +908,6 @@ M._prompt_and_create_story = function(project_key)
         end)
       end
 
-      -- Get current user's account ID (cached)
       if state.current_user_account_id then
         do_create(state.current_user_account_id)
       else

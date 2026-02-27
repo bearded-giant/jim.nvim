@@ -68,7 +68,8 @@ local function curl_request(method, endpoint, data, callback)
 
       local response = table.concat(stdout, "")
       if not response or response == "" then
-        if callback then callback(nil, "Empty response from Jira") end
+        -- 204 No Content is valid for PUT/POST mutations
+        if callback then callback(nil, nil) end
         return
       end
 
@@ -167,6 +168,40 @@ end
 -- Get current user info
 function M.get_myself(callback)
   curl_request("GET", "/rest/api/3/myself", nil, callback)
+end
+
+-- Get users assignable to issues in a project (paginated)
+function M.get_assignable_users(project_key, callback)
+  local all_users = {}
+  local page_size = 200
+
+  local function fetch_page(start_at)
+    local endpoint = string.format(
+      "/rest/api/3/user/assignable/search?project=%s&startAt=%d&maxResults=%d",
+      project_key, start_at, page_size
+    )
+    curl_request("GET", endpoint, nil, function(result, err)
+      if err then
+        if callback then callback(nil, err) end
+        return
+      end
+      if not result or #result == 0 then
+        if callback then callback(all_users, nil) end
+        return
+      end
+      for _, u in ipairs(result) do
+        table.insert(all_users, u)
+      end
+      -- if we got a full page there may be more
+      if #result >= page_size then
+        fetch_page(start_at + #result)
+      else
+        if callback then callback(all_users, nil) end
+      end
+    end)
+  end
+
+  fetch_page(0)
 end
 
 -- Convert plain text to ADF format

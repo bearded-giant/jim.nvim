@@ -453,4 +453,81 @@ function M.open_markdown_view(title, lines)
   end
 end
 
+-- opts: { default, filetype, width, height }
+function M.open_text_input(title, opts, callback)
+  if type(opts) == "function" then
+    callback = opts
+    opts = {}
+  end
+  opts = opts or {}
+
+  local buf = api.nvim_create_buf(false, true)
+  api.nvim_buf_set_option(buf, "buftype", "nofile")
+  api.nvim_buf_set_option(buf, "bufhidden", "wipe")
+  if opts.filetype then
+    api.nvim_buf_set_option(buf, "filetype", opts.filetype)
+  end
+
+  local width = opts.width or math.floor(vim.o.columns * 0.6)
+  local height = opts.height or math.floor(vim.o.lines * 0.4)
+
+  local win = api.nvim_open_win(buf, true, {
+    relative = "editor",
+    width = width,
+    height = height,
+    row = math.floor((vim.o.lines - height) / 2),
+    col = math.floor((vim.o.columns - width) / 2),
+    style = "minimal",
+    border = "rounded",
+    title = " " .. (title or "Input") .. " | Ctrl-s: submit | Esc: cancel ",
+    title_pos = "center",
+  })
+
+  if opts.default and opts.default ~= "" then
+    local lines = vim.split(opts.default, "\n", { plain = true })
+    api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    -- place cursor at end
+    local last = #lines
+    api.nvim_win_set_cursor(win, { last, #lines[last] })
+  end
+
+  vim.cmd("startinsert")
+
+  local done = false
+
+  local function submit()
+    if done then return end
+    done = true
+    local lines = api.nvim_buf_get_lines(buf, 0, -1, false)
+    if api.nvim_win_is_valid(win) then
+      api.nvim_win_close(win, true)
+    end
+    local text = table.concat(lines, "\n"):gsub("^%s+", ""):gsub("%s+$", "")
+    if callback then callback(text ~= "" and text or nil) end
+  end
+
+  local function cancel()
+    if done then return end
+    done = true
+    if api.nvim_win_is_valid(win) then
+      api.nvim_win_close(win, true)
+    end
+    if callback then callback(nil) end
+  end
+
+  vim.keymap.set({ "n", "i" }, "<C-s>", submit, { buffer = buf, silent = true })
+  vim.keymap.set("n", "<Esc>", cancel, { buffer = buf, silent = true })
+
+  api.nvim_create_autocmd("BufWipeout", {
+    buffer = buf,
+    once = true,
+    callback = function()
+      if not done and callback then
+        done = true
+        callback(nil)
+      end
+    end,
+  })
+end
+
 return M
