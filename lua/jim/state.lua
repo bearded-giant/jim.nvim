@@ -11,6 +11,7 @@ local state = {
   project_key = nil,
   current_view = nil,
   custom_jql = nil,
+  jql_history = {},
   cache = {},
   my_issues_projects = {},
   cached_projects = nil,
@@ -38,11 +39,28 @@ function state.set_assignable_users(project_key, users)
   }
 end
 
+function state.push_jql_history(query)
+  if not query or query == "" then return end
+  local history = state.jql_history
+  -- remove duplicate if exists
+  for i = #history, 1, -1 do
+    if history[i] == query then
+      table.remove(history, i)
+    end
+  end
+  table.insert(history, 1, query)
+  -- cap at 50
+  while #history > 50 do
+    table.remove(history)
+  end
+end
+
 function state.save()
   local data = {
     my_issues_projects = state.my_issues_projects,
     hide_resolved = state.hide_resolved,
     last_jql = state.custom_jql,
+    jql_history = state.jql_history,
     hidden_tabs = state.hidden_tabs,
   }
   local json = vim.json.encode(data)
@@ -65,6 +83,11 @@ function state.load()
         state.hide_resolved = data.hide_resolved
       end
       state.custom_jql = data.last_jql
+      state.jql_history = data.jql_history or {}
+      -- seed history from last_jql for existing users upgrading
+      if state.custom_jql and #state.jql_history == 0 then
+        table.insert(state.jql_history, state.custom_jql)
+      end
       state.hidden_tabs = data.hidden_tabs or {}
     end
   end

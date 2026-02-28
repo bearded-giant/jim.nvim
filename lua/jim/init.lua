@@ -163,7 +163,14 @@ M.setup_keymaps = function()
     end
     require("jim").load_my_issues_view()
   end, opts)
-  set_keymap(km.jql, function() require("jim").prompt_jql() end, opts)
+  set_keymap(km.jql, function()
+    if state.custom_jql and state.custom_jql ~= "" then
+      require("jim").load_view(state.project_key, "JQL")
+    else
+      require("jim").prompt_jql()
+    end
+  end, opts)
+  set_keymap(km.jql_input, function() require("jim").prompt_jql_history() end, opts)
   set_keymap(km.sprint, function() pick_project_for_view("Active Sprint") end, opts)
   set_keymap(km.backlog, function() pick_project_for_view("Backlog") end, opts)
   set_keymap(km.help, function() require("jim").load_view(state.project_key, "Help") end, opts)
@@ -353,14 +360,45 @@ M.load_view = function(project_key, view_name)
   end)
 end
 
-M.prompt_jql = function()
-  ui.open_text_input("JQL", { default = state.custom_jql or "", height = 6 }, function(input)
+M.prompt_jql = function(default_query)
+  local default = default_query or state.custom_jql or ""
+  ui.open_text_input("JQL", { default = default, height = 6 }, function(input)
     if not input or input == "" then return end
-    -- collapse to single line for JQL
     local jql = input:gsub("\n", " "):gsub("%s+", " ")
     state.custom_jql = jql
+    state.push_jql_history(jql)
     state.save()
     M.load_view(state.project_key, "JQL")
+  end)
+end
+
+M.prompt_jql_history = function()
+  local history = state.jql_history or {}
+  if #history == 0 then
+    M.prompt_jql()
+    return
+  end
+
+  local items = {}
+  table.insert(items, "[New Query]")
+  for _, q in ipairs(history) do
+    table.insert(items, q)
+  end
+
+  vim.ui.select(items, {
+    prompt = "JQL History:",
+    format_item = function(item)
+      if item == "[New Query]" then return "  New Query" end
+      if #item > 80 then return item:sub(1, 77) .. "..." end
+      return item
+    end,
+  }, function(choice)
+    if not choice then return end
+    if choice == "[New Query]" then
+      M.prompt_jql("")
+    else
+      M.prompt_jql(choice)
+    end
   end)
 end
 

@@ -29,6 +29,7 @@ M.defaults = {
     toggle_all = "t",
     my_issues = "M",
     jql = "J",
+    jql_input = "gj",
     sprint = "S",
     backlog = "B",
     help = "H",
