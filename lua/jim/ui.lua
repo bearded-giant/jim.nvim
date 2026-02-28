@@ -176,7 +176,7 @@ function M.create_window()
   api.nvim_create_autocmd("BufWipeout", {
     buffer = state.buf,
     callback = function()
-      -- close all floating windows (popups, pickers, spinner)
+      state.save()
       M.stop_loading()
       for _, w in ipairs(api.nvim_list_wins()) do
         local ok, conf = pcall(api.nvim_win_get_config, w)

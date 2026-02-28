@@ -1334,10 +1334,16 @@ M.open = function(project_key)
     return
   end
 
-  -- If no project key, open My Issues flow
+  -- restore last view if no explicit project key
   if not project_key or project_key == "" then
-    -- If we have saved projects, load them directly
-    if #state.my_issues_projects > 0 then
+    local last = state.last_view
+    if last == "JQL" and state.custom_jql and state.custom_jql ~= "" then
+      M.load_view(state.project_key, "JQL")
+    elseif last == "My Issues" and #state.my_issues_projects > 0 then
+      M.load_my_issues_view()
+    elseif (last == "Active Sprint" or last == "Backlog") and (state.project_key or state.last_project_key) then
+      M.load_view(state.project_key or state.last_project_key, last)
+    elseif #state.my_issues_projects > 0 then
       M.load_my_issues_view()
     else
       M.prompt_my_issues_projects()

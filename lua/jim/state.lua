@@ -62,6 +62,8 @@ function state.save()
     last_jql = state.custom_jql,
     jql_history = state.jql_history,
     hidden_tabs = state.hidden_tabs,
+    last_view = state.current_view,
+    last_project_key = state.project_key,
   }
   local json = vim.json.encode(data)
   local file = io.open(data_path, "w")
@@ -89,6 +91,8 @@ function state.load()
         table.insert(state.jql_history, state.custom_jql)
       end
       state.hidden_tabs = data.hidden_tabs or {}
+      state.last_view = data.last_view
+      state.last_project_key = data.last_project_key
     end
   end
 end
