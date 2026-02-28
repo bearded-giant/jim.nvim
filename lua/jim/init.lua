@@ -312,12 +312,6 @@ M.load_view = function(project_key, view_name)
         state.tree = util.build_issue_tree(issues)
         render.clear(state.buf)
         render.render_issue_tree(state.tree, state.current_view)
-        if not cached_issues then
-          local msg = project_key
-            and ("Loaded " .. view_name .. " for " .. project_key)
-            or ("Loaded " .. view_name)
-          vim.notify(msg, vim.log.levels.INFO)
-        end
       end
 
       M.setup_keymaps()

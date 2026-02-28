@@ -162,6 +162,14 @@ function M.create_window()
   resize_autocmd_id = api.nvim_create_autocmd("VimResized", {
     callback = function()
       resize_windows()
+      local render = require("jim.render")
+      if state.current_view == "Help" then
+        render.clear(state.buf)
+        render.render_help(state.current_view)
+      elseif state.tree and #state.tree > 0 then
+        render.clear(state.buf)
+        render.render_issue_tree(state.tree, state.current_view)
+      end
     end,
   })
 

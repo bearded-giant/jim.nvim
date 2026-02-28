@@ -158,7 +158,6 @@ local function render_issue_line(node, depth, row)
   local cols = require("jim.config").options.columns or {}
   local col_widths = {}
   for _, c in ipairs(cols) do col_widths[c.field] = c.width end
-  local TITLE_W = col_widths["summary"] or MAX.TITLE
   local ASSIGNEE_W = col_widths["assignee"] or MAX.ASSIGNEE
   local TIME_W = col_widths["time"] or MAX.TIME
   local STATUS_W = col_widths["status"] or MAX.STATUS
@@ -174,7 +173,6 @@ local function render_issue_line(node, depth, row)
   local is_root = depth == 1
 
   local key = node.key or ""
-  local title = truncate(node.summary or "", TITLE_W)
   local points = node.story_points or node.points
   local pts = ""
   if is_root and points ~= nil and points ~= vim.NIL then
@@ -182,6 +180,32 @@ local function render_issue_line(node, depth, row)
   end
 
   local status = truncate(node.status or "Unknown", STATUS_W)
+
+  -- build right part first so we know its display width
+  local bar_width = 8
+  local time_str, time_hl, assignee_str, bar_str, bar_filled_len = get_right_part_info(node, is_root, bar_width)
+
+  local bar_display = bar_str
+  if bar_display == "" then
+    bar_display = string.rep(" ", bar_width)
+  end
+
+  local time_pad = string.rep(" ", TIME_W - vim.fn.strdisplaywidth(time_str))
+  local ass_pad = string.rep(" ", ASSIGNEE_W - vim.fn.strdisplaywidth(assignee_str))
+  local status_pad = string.rep(" ", STATUS_W - vim.fn.strdisplaywidth(status))
+  local status_str = " " .. status .. status_pad .. " "
+
+  local right_part = string.format("%s  %s%s  %s%s  %s", bar_display, time_str, time_pad, assignee_str, ass_pad, status_str)
+  local right_dw = vim.fn.strdisplaywidth(right_part)
+
+  -- compute effective title width from remaining space
+  local left_prefix = string.format("%s%s %s %s ", indent, expand_icon, icon, key)
+  local total_width = api.nvim_win_get_width(state.win or 0)
+  local configured_title = col_widths["summary"] or MAX.TITLE
+  local available_title = total_width - vim.fn.strdisplaywidth(left_prefix) - vim.fn.strdisplaywidth(pts) - right_dw - 2
+  local TITLE_W = math.max(15, math.min(configured_title, available_title))
+
+  local title = truncate(node.summary or "", TITLE_W)
 
   local highlights = {}
   local col = #indent
@@ -204,22 +228,6 @@ local function render_issue_line(node, depth, row)
   add_hl(highlights, col, pts, "JimStoryPoint")
 
   -- RIGHT -------------------------------------------------
-  local bar_width = 8
-  local time_str, time_hl, assignee_str, bar_str, bar_filled_len = get_right_part_info(node, is_root, bar_width)
-
-  local bar_display = bar_str
-  if bar_display == "" then
-    bar_display = string.rep(" ", bar_width)
-  end
-
-  local time_pad = string.rep(" ", TIME_W - vim.fn.strdisplaywidth(time_str))
-  local ass_pad = string.rep(" ", ASSIGNEE_W - vim.fn.strdisplaywidth(assignee_str))
-  local status_pad = string.rep(" ", STATUS_W - vim.fn.strdisplaywidth(status))
-  local status_str = " " .. status .. status_pad .. " "
-
-  local right_part = string.format("%s  %s%s  %s%s  %s", bar_display, time_str, time_pad, assignee_str, ass_pad, status_str)
-
-  local total_width = api.nvim_win_get_width(state.win or 0)
   local left_width = vim.fn.strdisplaywidth(left)
   local padding = string.rep(" ", math.max(1, total_width - left_width - vim.fn.strdisplaywidth(right_part) - 1))
 
@@ -272,17 +280,32 @@ local function format_keys(keys)
   return keys
 end
 
+local function get_effective_summary_width(cols, overhead)
+  local win_width = state.win and api.nvim_win_get_width(state.win) or 160
+  local fixed = overhead
+  local summary_max = MAX.TITLE
+  for _, c in ipairs(cols) do
+    if c.field == "summary" then
+      summary_max = c.width or MAX.TITLE
+    else
+      fixed = fixed + (c.width or 12) + 2
+    end
+  end
+  local available = win_width - fixed - 2
+  return math.max(15, math.min(summary_max, available))
+end
+
 local function render_column_header(row)
   local cols = require("jim.config").options.columns or {}
-  local header = "  "
   local hls = {}
 
   local left_pad = "       "
-  header = left_pad
+  local header = left_pad
+  local effective_summary = get_effective_summary_width(cols, #left_pad)
 
   for _, col in ipairs(cols) do
     local label = col.header or col.field
-    local width = col.width or 12
+    local width = col.field == "summary" and effective_summary or (col.width or 12)
 
     if state.sort_column == col.field then
       if state.sort_direction == "asc" then
