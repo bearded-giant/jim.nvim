@@ -290,7 +290,7 @@ function M.show_issue_details_popup(issue)
 
   local summary = fields.summary or ""
   local status = fields.status and fields.status.name or "Unknown"
-  local assignee = fields.assignee and fields.assignee.displayName or "Unassigned"
+  local assignee = (fields.assignee and fields.assignee ~= vim.NIL) and fields.assignee.displayName or "Unassigned"
   local created = fields.created
   local sprint_name = nil
   if fields.sprint then
@@ -504,7 +504,7 @@ function M.open_text_input(title, opts, callback)
     api.nvim_win_set_cursor(win, { last, #lines[last] })
   end
 
-  vim.cmd("startinsert")
+  vim.cmd("startinsert!")
 
   local done = false
 

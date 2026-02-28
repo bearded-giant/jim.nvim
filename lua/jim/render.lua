@@ -551,6 +551,8 @@ function M.render_help(view)
       hl_group = h.hl,
     })
   end
+
+  api.nvim_buf_set_option(state.buf, "modifiable", false)
 end
 
 -- ---------------------------------------------
@@ -589,6 +591,10 @@ function M.render_issue_tree(issues, view, depth, row)
     end
   end
 
+  if depth == 1 then
+    api.nvim_buf_set_option(state.buf, "modifiable", false)
+  end
+
   return row
 end
 
@@ -596,6 +602,7 @@ end
 -- Clear buffer
 -- ---------------------------------------------
 function M.clear(buf)
+  api.nvim_buf_set_option(buf, "modifiable", true)
   api.nvim_buf_clear_namespace(buf, state.ns, 0, -1)
   api.nvim_buf_set_lines(buf, 0, -1, false, {})
 end
