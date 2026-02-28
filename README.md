@@ -92,6 +92,7 @@ require("jim").setup({
     toggle_all = "t",
     my_issues = "M",
     jql = "J",
+    jql_input = "gj",
     sprint = "S",
     backlog = "B",
     help = "H",
@@ -168,7 +169,8 @@ All keymaps are configurable via `setup()`. Defaults shown below.
 | Key | Action                                         |
 | --- | ---------------------------------------------- |
 | `M` | My Issues (cross-project, uses saved projects) |
-| `J` | Custom JQL search                              |
+| `J` | Run last JQL query (or prompt if none)          |
+| `gj` | JQL history picker / new query                 |
 | `S` | Switch to Active Sprint                        |
 | `B` | Switch to Backlog                              |
 | `H` | Show help                                      |
@@ -227,7 +229,9 @@ Shows issues not assigned to an active sprint and not in Done status. Same proje
 
 ### Custom JQL
 
-Press `J` to enter any JQL query. Queries are fully free-form and not restricted to configured projects. Your last query is saved and restored on next session. Examples:
+Press `J` to re-run your last JQL query instantly (or open the input if you haven't run one yet). Press `gj` to browse your query history or write a new one. The history picker uses `vim.ui.select`, so if you have telescope or fzf-lua installed you get fuzzy search automatically. Selecting a query from history opens the text input pre-filled so you can tweak it before running.
+
+Up to 50 queries are saved across sessions, deduped, most recent first. Examples:
 
 ```
 assignee = currentUser() AND project = PROJ
@@ -314,6 +318,7 @@ The plugin saves the following to `~/.local/share/nvim/jim_nvim.json`:
 - `hide_resolved` - Whether to show/hide resolved issues
 - `hidden_tabs` - Which tabs are hidden from the header
 - `last_jql` - Your last executed JQL query (restored on next session)
+- `jql_history` - Last 50 JQL queries for the history picker
 
 ## License
 

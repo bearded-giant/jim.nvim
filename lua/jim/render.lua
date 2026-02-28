@@ -377,55 +377,148 @@ function M.render_help(view)
   local config = require("jim.config")
   local km = config.options.keymaps
 
-  local help_content = {
-    { k = format_keys(km.toggle_node), d = "Toggle Node (Expand/Collapse)" },
-    { k = format_keys(km.toggle_all), d = "Toggle All (Expand/Collapse)" },
-    { k = format_keys(km.my_issues), d = "My Issues (cross-project)" },
-    { k = format_keys(km.jql), d = "Run last JQL query" },
-    { k = format_keys(km.jql_input), d = "JQL history / new query" },
-    { k = format_keys(km.sprint), d = "Switch to Active Sprint" },
-    { k = format_keys(km.backlog), d = "Switch to Backlog" },
-    { k = format_keys(km.edit_projects), d = "Edit saved projects" },
-    { k = format_keys(km.edit_issue), d = "Edit issue (summary/description/status)" },
-    { k = format_keys(km.filter), d = "Filter by summary" },
-    { k = format_keys(km.clear_filter), d = "Clear filter" },
-    { k = format_keys(km.assign_user), d = "Assign issue to user" },
-    { k = format_keys(km.change_status), d = "Change issue status" },
-    { k = format_keys(km.create_story), d = "Create new story" },
-    { k = format_keys(km.close_issue), d = "Close issue (Done)" },
-    { k = format_keys(km.toggle_resolved), d = "Toggle show/hide resolved" },
-    { k = format_keys(km.details), d = "Show Issue Details (Popup)" },
-    { k = format_keys(km.read_task), d = "Read Task as Markdown" },
-    { k = format_keys(km.open_browser), d = "Open Task in Browser" },
-    { k = format_keys(km.yank_key), d = "Copy issue key to clipboard" },
-    { k = format_keys(km.export_csv), d = "Export issue list to CSV" },
-    { k = format_keys(km.export_markdown), d = "Export issue to Markdown file" },
-    { k = format_keys(km.refresh), d = "Refresh current view" },
-    { k = format_keys(km.next_tab) .. " / " .. format_keys(km.prev_tab), d = "Cycle tabs" },
-    { k = format_keys(km.toggle_tabs), d = "Toggle tab visibility" },
-    { k = format_keys(km.sort_column), d = "Sort by column" },
-    { k = format_keys(km.toggle_columns), d = "Toggle visible columns" },
-    { k = format_keys(km.help), d = "Show this Help" },
-    { k = format_keys(km.close), d = "Close Board" },
+  local sections = {
+    { title = "Views", items = {
+      { k = format_keys(km.my_issues), d = "My Issues (cross-project)" },
+      { k = format_keys(km.sprint), d = "Active Sprint" },
+      { k = format_keys(km.backlog), d = "Backlog" },
+      { k = format_keys(km.next_tab) .. " / " .. format_keys(km.prev_tab), d = "Cycle tabs" },
+      { k = format_keys(km.toggle_tabs), d = "Toggle tab visibility" },
+      { k = format_keys(km.edit_projects), d = "Edit saved projects" },
+    }},
+    { title = "JQL", items = {
+      { k = format_keys(km.jql), d = "Run last JQL query" },
+      { k = format_keys(km.jql_input), d = "History / new query" },
+    }},
+    { title = "Navigation", items = {
+      { k = format_keys(km.toggle_node), d = "Expand / collapse node" },
+      { k = format_keys(km.toggle_all), d = "Expand / collapse all" },
+      { k = format_keys(km.filter), d = "Filter by summary" },
+      { k = format_keys(km.clear_filter), d = "Clear filter" },
+      { k = format_keys(km.toggle_resolved), d = "Show/hide resolved" },
+    }},
+    { title = "Issue Actions", items = {
+      { k = format_keys(km.edit_issue), d = "Edit issue" },
+      { k = format_keys(km.change_status), d = "Change status" },
+      { k = format_keys(km.assign_user), d = "Assign user" },
+      { k = format_keys(km.create_story), d = "Create new story" },
+      { k = format_keys(km.close_issue), d = "Close issue (Done)" },
+    }},
+    { title = "Issue Details", items = {
+      { k = format_keys(km.details), d = "Details popup" },
+      { k = format_keys(km.read_task), d = "Read as markdown" },
+      { k = format_keys(km.open_browser), d = "Open in browser" },
+      { k = format_keys(km.yank_key), d = "Copy key to clipboard" },
+    }},
+    { title = "Display", items = {
+      { k = format_keys(km.sort_column), d = "Sort by column" },
+      { k = format_keys(km.toggle_columns), d = "Toggle columns" },
+    }},
+    { title = "Export", items = {
+      { k = format_keys(km.export_csv), d = "Export to CSV" },
+      { k = format_keys(km.export_markdown), d = "Export to markdown" },
+    }},
+    { title = "General", items = {
+      { k = format_keys(km.refresh), d = "Refresh view" },
+      { k = format_keys(km.help), d = "This help" },
+      { k = format_keys(km.close), d = "Close board" },
+    }},
   }
 
+  -- line height per section: title + separator + items + blank
+  local function section_height(s) return 2 + #s.items + 1 end
+
+  -- split sections into two columns, balanced by line count
+  local total = 0
+  for _, s in ipairs(sections) do total = total + section_height(s) end
+  local left, right = {}, {}
+  local left_h = 0
+  for _, s in ipairs(sections) do
+    if left_h <= total / 2 then
+      table.insert(left, s)
+      left_h = left_h + section_height(s)
+    else
+      table.insert(right, s)
+    end
+  end
+
+  -- render one column into an array of {text, hls} per line
+  -- hls entries are {start_col, end_col, hl} relative to the column
+  local function render_column(col_sections)
+    local col_lines = {}
+    for _, section in ipairs(col_sections) do
+      -- title
+      table.insert(col_lines, {
+        text = section.title,
+        hls = {{ start_col = 0, end_col = #section.title, hl = "Label" }},
+      })
+      -- separator
+      local sep = string.rep("─", 38)
+      table.insert(col_lines, {
+        text = sep,
+        hls = {{ start_col = 0, end_col = #sep, hl = "Comment" }},
+      })
+      -- items
+      for _, item in ipairs(section.items) do
+        local line = string.format("  %-16s %s", item.k, item.d)
+        table.insert(col_lines, {
+          text = line,
+          hls = {{ start_col = 2, end_col = 2 + #item.k, hl = "Special" }},
+        })
+      end
+      -- blank line
+      table.insert(col_lines, { text = "", hls = {} })
+    end
+    return col_lines
+  end
+
+  local left_col = render_column(left)
+  local right_col = render_column(right)
+
+  local win_width = state.win and api.nvim_win_get_width(state.win) or 160
+  local col_width = math.floor((win_width - 6) / 2) -- 2 margin + 2 gutter + 2 margin
+  local gutter = 4
+
+  local row_count = math.max(#left_col, #right_col)
   local lines = { "" }
   local hls = {}
 
-  table.insert(lines, "  Keymaps:")
-  table.insert(lines, "")
+  for i = 1, row_count do
+    local l = left_col[i]
+    local r = right_col[i]
+    local l_text = l and l.text or ""
+    local r_text = r and r.text or ""
 
-  for _, item in ipairs(help_content) do
-    local line = string.format("    %-18s %s", item.k, item.d)
+    -- pad left column to fixed width
+    local padded = l_text .. string.rep(" ", col_width - vim.fn.strdisplaywidth(l_text))
+    local line = "  " .. padded .. string.rep(" ", gutter) .. r_text
     table.insert(lines, line)
-    local buf_row = 2 + #lines - 1
 
-    table.insert(hls, {
-      row = buf_row,
-      start_col = 4,
-      end_col = 4 + #item.k,
-      hl = "Special",
-    })
+    local buf_row = 2 + #lines - 1
+    local left_offset = 2
+
+    if l then
+      for _, h in ipairs(l.hls) do
+        table.insert(hls, {
+          row = buf_row,
+          start_col = left_offset + h.start_col,
+          end_col = left_offset + h.end_col,
+          hl = h.hl,
+        })
+      end
+    end
+
+    if r then
+      local right_offset = 2 + col_width + gutter
+      for _, h in ipairs(r.hls) do
+        table.insert(hls, {
+          row = buf_row,
+          start_col = right_offset + h.start_col,
+          end_col = right_offset + h.end_col,
+          hl = h.hl,
+        })
+      end
+    end
   end
 
   api.nvim_buf_set_lines(state.buf, 2, -1, false, lines)
