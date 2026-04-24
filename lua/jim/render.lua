@@ -337,6 +337,36 @@ local function render_column_header(row)
   state.column_header_row = row
 end
 
+local function build_hint_line(view, km)
+  local function pair(k, d) return format_keys(k) .. ":" .. d end
+
+  if view == "Help" then
+    return pair(km.close, "close")
+  end
+
+  local parts = {
+    pair(km.toggle_node, "toggle"),
+    pair(km.toggle_all, "all"),
+    pair(km.filter, "filter"),
+    pair(km.change_status, "status"),
+    pair(km.edit_issue, "edit"),
+    pair(km.create_story, "new"),
+    pair(km.details, "details"),
+    pair(km.open_browser, "browser"),
+    pair(km.refresh, "refresh"),
+  }
+
+  if view == "JQL" then
+    table.insert(parts, 1, pair(km.jql_input, "new JQL"))
+    table.insert(parts, 2, pair(km.jql, "rerun"))
+  end
+
+  table.insert(parts, pair(km.help, "help"))
+  table.insert(parts, pair(km.close, "quit"))
+
+  return table.concat(parts, "  ")
+end
+
 local function render_header(view)
   local config = require("jim.config")
   local km = config.options.keymaps
@@ -372,13 +402,18 @@ local function render_header(view)
     })
   end
 
-  -- Show active filter if present
-  local filter_line = ""
+  -- Line 2: filter if active, else contextual key hints
+  local second_line = ""
+  local second_hl = nil
   if state.current_filter and state.current_filter ~= "" then
-    filter_line = "  Filter: " .. state.current_filter .. "  (press " .. format_keys(km.clear_filter) .. " to clear)"
+    second_line = "  Filter: " .. state.current_filter .. "  (press " .. format_keys(km.clear_filter) .. " to clear)"
+    second_hl = "WarningMsg"
+  else
+    second_line = "  " .. build_hint_line(view, km)
+    second_hl = "Comment"
   end
 
-  api.nvim_buf_set_lines(state.buf, 0, -1, false, { header, filter_line })
+  api.nvim_buf_set_lines(state.buf, 0, -1, false, { header, second_line })
   for _, h in ipairs(hls) do
     api.nvim_buf_set_extmark(state.buf, state.ns, 0, h.start_col, {
       end_col = h.end_col,
@@ -386,11 +421,10 @@ local function render_header(view)
     })
   end
 
-  -- Highlight filter line
-  if filter_line ~= "" then
+  if second_line ~= "" and second_hl then
     api.nvim_buf_set_extmark(state.buf, state.ns, 1, 0, {
-      end_col = #filter_line,
-      hl_group = "WarningMsg",
+      end_col = #second_line,
+      hl_group = second_hl,
     })
   end
 end

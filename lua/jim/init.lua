@@ -356,7 +356,9 @@ end
 
 M.prompt_jql = function(default_query)
   local default = default_query or state.custom_jql or ""
-  ui.open_text_input("JQL", { default = default, height = 6 }, function(input)
+  local height = math.max(12, math.floor(vim.o.lines * 0.4))
+  local width = math.max(80, math.floor(vim.o.columns * 0.7))
+  ui.open_text_input("JQL", { default = default, height = height, width = width }, function(input)
     if not input or input == "" then return end
     local jql = input:gsub("\n", " "):gsub("%s+", " ")
     state.custom_jql = jql
