@@ -75,6 +75,67 @@ state.cache["global:JQL:" .. jql_query] = mock.jql
 
 local jim = require("jim")
 local render = require("jim.render")
+local util = require("jim.util")
+local ui = require("jim.ui")
+
+local function expand_first_parent()
+  for _, node in ipairs(state.tree) do
+    if node.children and #node.children > 0 then
+      node.expanded = true
+      break
+    end
+  end
+end
+
+local function rerender()
+  render.clear(state.buf)
+  render.render_issue_tree(state.tree, state.current_view)
+end
+
+local mock_issue = {
+  key = "ACME-42",
+  fields = {
+    summary = "User authentication overhaul",
+    status = { name = "In Progress" },
+    assignee = { displayName = "Sarah Chen" },
+    created = "2026-05-12T09:30:00.000+0000",
+    sprint = { name = "Sprint 24 - Auth & Payments" },
+    description = {
+      type = "doc", version = 1,
+      content = {
+        { type = "paragraph", content = {
+          { type = "text", text = "Replace the legacy session cookie flow with OAuth2 and short-lived JWTs." },
+        } },
+        { type = "paragraph", content = {
+          { type = "text", text = "Includes refresh-token rotation and migrating existing sessions on first login." },
+        } },
+      },
+    },
+  },
+}
+
+-- post-render mutations to showcase interactive features without driving vim.ui.select
+local actions = {
+  sort = function()
+    state.sort_column = "status"
+    state.sort_direction = "asc"
+    util.sort_tree(state.tree, "status", "asc")
+    rerender()
+  end,
+  details = function()
+    ui.show_issue_details_popup(mock_issue)
+  end,
+  create = function()
+    ui.open_text_input(
+      "New Story (ACME) | title above --- | description below",
+      {
+        filetype = "markdown",
+        default = "Add CSV export to the backlog view\n---\nUsers want to export the current backlog to CSV for standup sharing.\n\n- include key, summary, status, points\n- respect the active filter",
+      },
+      function() end
+    )
+  end,
+}
 
 function _G.JimScreenshot(view)
   local views = {
@@ -83,12 +144,15 @@ function _G.JimScreenshot(view)
     my_issues = { project = nil,    name = "My Issues" },
     jql       = { project = nil,    name = "JQL" },
     help      = { project = "ACME", name = "Help" },
+    sort      = { project = "ACME", name = "Active Sprint", after = "sort" },
+    details   = { project = "ACME", name = "Active Sprint", after = "details" },
+    create    = { project = "ACME", name = "Active Sprint", after = "create" },
   }
 
   local v = views[view]
   if not v then
     print("unknown view: " .. view)
-    print("options: sprint, backlog, my_issues, jql, help")
+    print("options: sprint, backlog, my_issues, jql, help, sort, columns, details, create")
     return
   end
 
@@ -101,14 +165,11 @@ function _G.JimScreenshot(view)
   -- expand first parent node so the screenshot shows hierarchy
   if v.name ~= "Help" then
     vim.defer_fn(function()
-      for _, node in ipairs(state.tree) do
-        if node.children and #node.children > 0 then
-          node.expanded = true
-          break
-        end
+      expand_first_parent()
+      rerender()
+      if v.after and actions[v.after] then
+        actions[v.after]()
       end
-      render.clear(state.buf)
-      render.render_issue_tree(state.tree, state.current_view)
-    end, 100)
+    end, 150)
   end
 end

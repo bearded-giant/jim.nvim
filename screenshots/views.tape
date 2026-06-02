@@ -5,30 +5,77 @@ Set Height 900
 Set Theme "Catppuccin Mocha"
 Set WindowBar Colorful
 
+# each shot runs a fresh nvim so sort/columns/float state never leaks between captures
+
 Type `nvim --clean -u scripts/screenshots.lua -c 'lua JimScreenshot("sprint")'`
 Enter
 Sleep 2s
 Screenshot screenshots/sprint.png
-
-Type `:lua JimScreenshot("backlog")`
+Escape
+Type ":qa!"
 Enter
-Sleep 1s
+Sleep 800ms
+
+Type `nvim --clean -u scripts/screenshots.lua -c 'lua JimScreenshot("backlog")'`
+Enter
+Sleep 1500ms
 Screenshot screenshots/backlog.png
-
-Type `:lua JimScreenshot("my_issues")`
+Escape
+Type ":qa!"
 Enter
-Sleep 1s
+Sleep 800ms
+
+Type `nvim --clean -u scripts/screenshots.lua -c 'lua JimScreenshot("my_issues")'`
+Enter
+Sleep 1500ms
 Screenshot screenshots/my_issues.png
-
-Type `:lua JimScreenshot("jql")`
+Escape
+Type ":qa!"
 Enter
-Sleep 1s
+Sleep 800ms
+
+Type `nvim --clean -u scripts/screenshots.lua -c 'lua JimScreenshot("jql")'`
+Enter
+Sleep 1500ms
 Screenshot screenshots/jql.png
-
-Type `:lua JimScreenshot("help")`
+Escape
+Type ":qa!"
 Enter
-Sleep 1s
+Sleep 800ms
+
+Type `nvim --clean -u scripts/screenshots.lua -c 'lua JimScreenshot("help")'`
+Enter
+Sleep 1500ms
 Screenshot screenshots/help.png
-
-Type `:qa!`
+Escape
+Type ":qa!"
 Enter
+Sleep 800ms
+
+Type `nvim --clean -u scripts/screenshots.lua -c 'lua JimScreenshot("sort")'`
+Enter
+Sleep 1500ms
+Screenshot screenshots/sort.png
+Escape
+Type ":qa!"
+Enter
+Sleep 800ms
+
+Type `nvim --clean -u scripts/screenshots.lua -c 'lua JimScreenshot("details")'`
+Enter
+Sleep 1500ms
+Screenshot screenshots/details.png
+Escape
+Type ":qa!"
+Enter
+Sleep 800ms
+
+Type `nvim --clean -u scripts/screenshots.lua -c 'lua JimScreenshot("create")'`
+Enter
+Sleep 1500ms
+Screenshot screenshots/create.png
+Escape
+Escape
+Type ":qa!"
+Enter
+Sleep 500ms
