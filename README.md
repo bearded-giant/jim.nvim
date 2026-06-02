@@ -4,6 +4,8 @@ A Neovim plugin for viewing and managing Jira issues with an interactive TUI.
 
 Since Jira UX is a time sucking disaster for dev productivity....
 
+![Sprint board](screenshots/sprint.png)
+
 ## Features
 
 - **My Issues** - Cross-project view of issues assigned to you (persisted)
@@ -125,7 +127,7 @@ require("jim").setup({
     { field = "key", header = "Key", width = 12 },
     { field = "summary", header = "Title", width = 60 },
     { field = "assignee", header = "Assignee", width = 12 },
-    { field = "time", header = "Time", width = 10 },
+    { field = "time", header = "Time", width = 16 },
     { field = "status", header = "Status", width = 14 },
   },
 })
@@ -154,7 +156,9 @@ Open the board:
 
 ## Keymaps
 
-All keymaps are configurable via `setup()`. Defaults shown below.
+All keymaps are configurable via `setup()`. Defaults shown below. Press `H` inside the board for this same reference:
+
+![Help](screenshots/help.png)
 
 ### Navigation
 
@@ -213,6 +217,8 @@ Cross-project view showing issues assigned to you. Press `E` to configure which 
 
 Press `M` to load My Issues. If no projects are configured, you'll be prompted to set them up with `E`.
 
+![My Issues](screenshots/my_issues.png)
+
 ### Active Sprint
 
 Shows all issues in the current active sprint for the selected project. Issues are displayed hierarchically with parent tasks and their subtasks.
@@ -227,6 +233,8 @@ When switching to Sprint view:
 
 Shows issues not assigned to an active sprint and not in Done status. Same project selection behavior as Sprint view.
 
+![Backlog](screenshots/backlog.png)
+
 ### Custom JQL
 
 Press `J` to re-run your last JQL query instantly (or open the input if you haven't run one yet). Press `gj` to browse your query history or write a new one. The history picker uses `vim.ui.select`, so if you have telescope or fzf-lua installed you get fuzzy search automatically. Selecting a query from history opens the text input pre-filled so you can tweak it before running.
@@ -238,6 +246,8 @@ assignee = currentUser() AND project = PROJ
 status = "In Progress" AND updated >= -7d
 labels = "urgent" ORDER BY priority DESC
 ```
+
+![Custom JQL](screenshots/jql.png)
 
 ### Filtering
 
@@ -256,6 +266,8 @@ Press `K` to open a details popup for the issue under cursor. The popup fetches 
 
 Press `q` or `Esc` to close the popup.
 
+![Issue details popup](screenshots/details.png)
+
 For the full description with acceptance criteria, use `m` to open the markdown view.
 
 ### Editing Issues
@@ -269,6 +281,12 @@ Press `e` to open the edit menu for the issue under cursor:
 For direct status changes without the menu, use `s`.
 
 **Note:** Attachments and rich formatting require the browser (`gx`).
+
+### Creating Stories
+
+Press `c` to create a story. It opens a single-buffer form -- title above the `---` separator, description below. `Ctrl-s` submits, `Esc` cancels. The story is auto-assigned to you.
+
+![Create story form](screenshots/create.png)
 
 ### Tab Visibility
 
@@ -284,11 +302,15 @@ Press `gs` to sort the issue list by a column. A picker shows the available colu
 
 Sorting applies to root-level issues only. Children stay grouped under their parent.
 
+![Sort by column](screenshots/sort.png)
+
 ### Configurable Columns
 
 Press `gc` to add or remove columns from the issue list at runtime. The picker shows available fields (Key, Title, Assignee, Time, Status, Priority, Reporter, Points, Type) with `[x]`/`[ ]` markers. Toggle fields on/off, then press `Esc` to apply.
 
-Column widths and defaults can also be set in `setup()` via the `columns` config. The column header row at the top of the issue list reflects the active configuration.
+Column widths and defaults can also be set in `setup()` via the `columns` config. Both the header row and the issue rows below it render from the active column set, in the order you configure -- so adding `priority` or `story_points` shows those values inline (priority is color-coded by level).
+
+![Configurable columns](screenshots/columns.png)
 
 ### Assigning Issues
 
@@ -319,6 +341,21 @@ The plugin saves the following to `~/.local/share/nvim/jim_nvim.json`:
 - `hidden_tabs` - Which tabs are hidden from the header
 - `last_jql` - Your last executed JQL query (restored on next session)
 - `jql_history` - Last 50 JQL queries for the history picker
+
+## Development
+
+Run the test suite:
+
+```bash
+make test
+```
+
+The screenshots in this README are generated from mock data -- no Jira credentials or network needed. `scripts/screenshots.lua` stubs out the API and pre-populates every view, and `screenshots/views.tape` drives [VHS](https://github.com/charmbracelet/vhs) to capture each one. To regenerate after a UI change:
+
+```bash
+brew install vhs   # one-time
+make screenshots
+```
 
 ## License
 

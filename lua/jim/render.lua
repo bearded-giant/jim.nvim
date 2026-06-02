@@ -46,15 +46,6 @@ local function render_progress_bar(spent, estimate, width)
   return bar, filled_len
 end
 
-local function add_hl(hls, start_col, text, hl)
-  local width = string.len(text)
-  table.insert(hls, {
-    start_col = start_col,
-    end_col = start_col + width,
-    hl = hl,
-  })
-end
-
 -- ---------------------------------------------
 -- Helpers
 -- ---------------------------------------------
@@ -115,171 +106,6 @@ local function get_time_display_info(spent, estimate)
   return col1_str, col1_hl
 end
 
----@param node JiraIssueNode
----@param is_root boolean
----@param bar_width number
----@return string col1_str
----@return string col1_hl
----@return string col2_str
----@return number bar_filled_len
-local function get_right_part_info(node, is_root, bar_width)
-  local time_str = ""
-  local time_hl = "Comment"
-  local assignee_str = ""
-  local bar_str = ""
-  local bar_filled_len = 0
-
-  if is_root then
-    local spent, estimate = get_totals(node)
-    local bar, filled = render_progress_bar(spent, estimate, bar_width)
-    bar_str = bar
-    bar_filled_len = filled
-    time_str = string.format("%s/%s", util.format_time(spent), util.format_time(math.max(estimate, spent)))
-  else
-    local spent = node.time_spent or 0
-    local estimate = node.time_estimate or 0
-    time_str, time_hl = get_time_display_info(spent, estimate)
-  end
-
-  local ass = truncate(node.assignee or "Unassigned", MAX.ASSIGNEE - 2)
-  assignee_str = " " .. ass
-
-  return time_str, time_hl, assignee_str, bar_str, bar_filled_len
-end
-
--- ---------------------------------------------
--- Render ONE issue line
--- ---------------------------------------------
----@param node JiraIssueNode
----@param depth number
----@param row number
----@return string, table[]
-local function render_issue_line(node, depth, row)
-  local cols = require("jim.config").options.columns or {}
-  local col_widths = {}
-  for _, c in ipairs(cols) do col_widths[c.field] = c.width end
-  local ASSIGNEE_W = col_widths["assignee"] or MAX.ASSIGNEE
-  local TIME_W = col_widths["time"] or MAX.TIME
-  local STATUS_W = col_widths["status"] or MAX.STATUS
-
-  local indent = string.rep("    ", depth - 1)
-  local icon, icon_hl = get_issue_icon(node)
-
-  local expand_icon = " "
-  if node.children and #node.children > 0 then
-    expand_icon = node.expanded and "" or ""
-  end
-
-  local is_root = depth == 1
-
-  local key = node.key or ""
-  local points = node.story_points or node.points
-  local pts = ""
-  if is_root and points ~= nil and points ~= vim.NIL then
-    pts = string.format(" 󰫢 %s", points)
-  end
-
-  local status = truncate(node.status or "Unknown", STATUS_W)
-
-  -- build right part first so we know its display width
-  local bar_width = 8
-  local time_str, time_hl, assignee_str, bar_str, bar_filled_len = get_right_part_info(node, is_root, bar_width)
-
-  local bar_display = bar_str
-  if bar_display == "" then
-    bar_display = string.rep(" ", bar_width)
-  end
-
-  local time_pad = string.rep(" ", TIME_W - vim.fn.strdisplaywidth(time_str))
-  local ass_pad = string.rep(" ", ASSIGNEE_W - vim.fn.strdisplaywidth(assignee_str))
-  local status_pad = string.rep(" ", STATUS_W - vim.fn.strdisplaywidth(status))
-  local status_str = " " .. status .. status_pad .. " "
-
-  local right_part = string.format("%s  %s%s  %s%s  %s", bar_display, time_str, time_pad, assignee_str, ass_pad, status_str)
-  local right_dw = vim.fn.strdisplaywidth(right_part)
-
-  -- compute effective title width from remaining space
-  local left_prefix = string.format("%s%s %s %s ", indent, expand_icon, icon, key)
-  local total_width = api.nvim_win_get_width(state.win or 0)
-  local configured_title = col_widths["summary"] or MAX.TITLE
-  local available_title = total_width - vim.fn.strdisplaywidth(left_prefix) - vim.fn.strdisplaywidth(pts) - right_dw - 2
-  local TITLE_W = math.max(15, math.min(configured_title, available_title))
-
-  local title = truncate(node.summary or "", TITLE_W)
-
-  local highlights = {}
-  local col = #indent
-
-  -- LEFT --------------------------------------------------
-  local left = string.format("%s%s %s %s %s %s", indent, expand_icon, icon, key, title, pts)
-
-  add_hl(highlights, col, expand_icon, "Comment")
-  col = col + #expand_icon + 1
-
-  add_hl(highlights, col, icon, icon_hl)
-  col = col + #icon + 1
-
-  add_hl(highlights, col, key, depth == 1 and "Title" or "LineNr")
-  col = col + #key + 1
-
-  add_hl(highlights, col, title, depth == 1 and "JimTopLevel" or "Comment")
-  col = col + #title + 1
-
-  add_hl(highlights, col, pts, "JimStoryPoint")
-
-  -- RIGHT -------------------------------------------------
-  local left_width = vim.fn.strdisplaywidth(left)
-  local padding = string.rep(" ", math.max(1, total_width - left_width - vim.fn.strdisplaywidth(right_part) - 1))
-
-  local full_line = left .. padding .. right_part
-
-  local right_col_start = #left + #padding
-
-  -- Highlight Progress Bar
-  if is_root then
-    local filled_bytes = bar_filled_len * 3
-    local empty_bytes = (bar_width - bar_filled_len) * 3
-    add_hl(highlights, right_col_start, string.sub(bar_display, 1, filled_bytes), "JimProgressBar")
-    add_hl(highlights, right_col_start + filled_bytes,
-      string.sub(bar_display, filled_bytes + 1, filled_bytes + empty_bytes), "linenr")
-  end
-
-  local current_col = right_col_start + #bar_display + 2
-
-  -- Highlight Time
-  if time_str ~= "" then
-    add_hl(highlights, current_col, time_str, time_hl)
-  end
-  current_col = current_col + #time_str + #time_pad + 2
-
-  -- Highlight Assignee
-  local ass_hl = (node.assignee == nil or node.assignee == "Unassigned") and "JimAssigneeUnassigned" or "JimAssignee"
-  add_hl(highlights, current_col, assignee_str, ass_hl)
-
-  -- Highlight Status
-  local right_status_start = current_col + #assignee_str + #ass_pad + 2
-  local status_hl = ui.get_status_hl(node.status)
-  add_hl(highlights, right_status_start, status_str, status_hl)
-
-  api.nvim_buf_set_lines(state.buf, row, row + 1, false, { full_line })
-
-  for _, h in ipairs(highlights) do
-    api.nvim_buf_set_extmark(state.buf, state.ns, row, h.start_col, {
-      end_col = h.end_col,
-      hl_group = h.hl,
-    })
-  end
-
-  return full_line, highlights
-end
-
-local function format_keys(keys)
-  if type(keys) == "table" then
-    return table.concat(keys, ", ")
-  end
-  return keys
-end
-
 local function get_effective_summary_width(cols, overhead)
   local win_width = state.win and api.nvim_win_get_width(state.win) or 160
   local fixed = overhead
@@ -293,6 +119,142 @@ local function get_effective_summary_width(cols, overhead)
   end
   local available = win_width - fixed - 2
   return math.max(15, math.min(summary_max, available))
+end
+
+-- width of the tree prefix (expand icon + type icon) reserved before the first
+-- column; render_column_header pads its label row by the same amount so header
+-- and body columns line up
+local PREFIX_W = 7
+
+local function priority_hl(p)
+  if p == "Highest" or p == "High" then return "Error" end
+  if p == "Medium" then return "WarningMsg" end
+  return "Comment"
+end
+
+-- one cell's content as a list of {text, hl} segments (unpadded)
+local function build_cell(node, field, is_root, width, has_points_col)
+  if field == "key" then
+    return { { text = node.key or "", hl = is_root and "Title" or "LineNr" } }
+  elseif field == "summary" then
+    local title = truncate(node.summary or "", width - (is_root and 6 or 0))
+    local segs = { { text = title, hl = is_root and "JimTopLevel" or "Comment" } }
+    if is_root and not has_points_col then
+      local points = node.story_points or node.points
+      if points ~= nil and points ~= vim.NIL then
+        segs[#segs + 1] = { text = string.format("  󰫢 %s", points), hl = "JimStoryPoint" }
+      end
+    end
+    return segs
+  elseif field == "assignee" then
+    local ass = node.assignee or "Unassigned"
+    local hl = (ass == "Unassigned") and "JimAssigneeUnassigned" or "JimAssignee"
+    return { { text = truncate(ass, width), hl = hl } }
+  elseif field == "status" then
+    local status = truncate(node.status or "Unknown", width - 2)
+    return { { text = " " .. status .. " ", hl = ui.get_status_hl(node.status) } }
+  elseif field == "time" then
+    if is_root then
+      local spent, estimate = get_totals(node)
+      local bar, filled = render_progress_bar(spent, estimate, 8)
+      local ratio = string.format("%s/%s", util.format_time(spent), util.format_time(math.max(estimate, spent)))
+      return {
+        { text = string.sub(bar, 1, filled * 3), hl = "JimProgressBar" },
+        { text = string.sub(bar, filled * 3 + 1), hl = "LineNr" },
+        { text = " " .. ratio, hl = "Comment" },
+      }
+    end
+    local t, hl = get_time_display_info(node.time_spent or 0, node.time_estimate or 0)
+    return { { text = t, hl = hl } }
+  elseif field == "story_points" then
+    local p = node.story_points or node.points
+    local txt = (p ~= nil and p ~= vim.NIL) and tostring(p) or ""
+    return { { text = txt, hl = "JimStoryPoint" } }
+  elseif field == "priority" then
+    local p = node.priority or ""
+    return { { text = p, hl = priority_hl(p) } }
+  elseif field == "type" then
+    return { { text = node.type or "", hl = "Comment" } }
+  elseif field == "reporter" then
+    return { { text = node.reporter or "", hl = "Comment" } }
+  end
+  return { { text = "", hl = nil } }
+end
+
+-- ---------------------------------------------
+-- Render ONE issue line (left-aligned, driven by config.options.columns
+-- in the same order/width as render_column_header so the two line up)
+-- ---------------------------------------------
+---@param node JiraIssueNode
+---@param depth number
+---@param row number
+---@return string, table[]
+local function render_issue_line(node, depth, row)
+  local cols = require("jim.config").options.columns or {}
+  local is_root = depth == 1
+  local indent = string.rep("    ", depth - 1)
+  local icon, icon_hl = get_issue_icon(node)
+
+  local expand_icon = " "
+  if node.children and #node.children > 0 then
+    expand_icon = node.expanded and "" or ""
+  end
+
+  local has_points_col = false
+  for _, c in ipairs(cols) do
+    if c.field == "story_points" then has_points_col = true end
+  end
+
+  local effective_summary = get_effective_summary_width(cols, PREFIX_W)
+
+  local line = ""
+  local highlights = {}
+  local function append(text, hl)
+    if hl and text ~= "" then
+      table.insert(highlights, { start_col = #line, end_col = #line + #text, hl = hl })
+    end
+    line = line .. text
+  end
+
+  -- tree prefix: indent + expand chevron + type icon, padded to PREFIX_W
+  append(indent, nil)
+  append(expand_icon, "Comment")
+  append(" ", nil)
+  append(icon, icon_hl)
+  local prefix_used = vim.fn.strdisplaywidth(expand_icon) + 1 + vim.fn.strdisplaywidth(icon)
+  append(string.rep(" ", math.max(1, PREFIX_W - prefix_used)), nil)
+
+  -- children prepend indent; shrink the flex summary cell by the same amount so
+  -- the trailing metadata columns stay aligned with the header across depths
+  local indent_dw = 4 * (depth - 1)
+  for _, c in ipairs(cols) do
+    local width = c.field == "summary" and math.max(10, effective_summary - indent_dw) or (c.width or 12)
+    local segs = build_cell(node, c.field, is_root, width, has_points_col)
+    local cell_dw = 0
+    for _, seg in ipairs(segs) do
+      append(seg.text, seg.hl)
+      cell_dw = cell_dw + vim.fn.strdisplaywidth(seg.text)
+    end
+    append(string.rep(" ", math.max(0, width - cell_dw)), nil)
+    append("  ", nil)
+  end
+
+  api.nvim_buf_set_lines(state.buf, row, row + 1, false, { line })
+  for _, h in ipairs(highlights) do
+    api.nvim_buf_set_extmark(state.buf, state.ns, row, h.start_col, {
+      end_col = h.end_col,
+      hl_group = h.hl,
+    })
+  end
+
+  return line, highlights
+end
+
+local function format_keys(keys)
+  if type(keys) == "table" then
+    return table.concat(keys, ", ")
+  end
+  return keys
 end
 
 local function render_column_header(row)
