@@ -61,6 +61,15 @@ Type ":qa!"
 Enter
 Sleep 800ms
 
+Type `nvim --clean -u scripts/screenshots.lua -c 'lua JimScreenshot("columns")'`
+Enter
+Sleep 1500ms
+Screenshot screenshots/columns.png
+Escape
+Type ":qa!"
+Enter
+Sleep 800ms
+
 Type `nvim --clean -u scripts/screenshots.lua -c 'lua JimScreenshot("details")'`
 Enter
 Sleep 1500ms

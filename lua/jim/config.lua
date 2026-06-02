@@ -60,7 +60,7 @@ M.defaults = {
     { field = "key", header = "Key", width = 12 },
     { field = "summary", header = "Title", width = 60 },
     { field = "assignee", header = "Assignee", width = 12 },
-    { field = "time", header = "Time", width = 10 },
+    { field = "time", header = "Time", width = 16 },
     { field = "status", header = "Status", width = 14 },
   },
 }

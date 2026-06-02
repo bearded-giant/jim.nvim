@@ -77,6 +77,7 @@ local jim = require("jim")
 local render = require("jim.render")
 local util = require("jim.util")
 local ui = require("jim.ui")
+local config = require("jim.config")
 
 local function expand_first_parent()
   for _, node in ipairs(state.tree) do
@@ -122,6 +123,17 @@ local actions = {
     util.sort_tree(state.tree, "status", "asc")
     rerender()
   end,
+  columns = function()
+    config.options.columns = {
+      { field = "key",          header = "Key",      width = 10 },
+      { field = "summary",      header = "Title",    width = 44 },
+      { field = "type",         header = "Type",     width = 10 },
+      { field = "priority",     header = "Priority", width = 10 },
+      { field = "story_points", header = "Points",   width = 8 },
+      { field = "status",       header = "Status",   width = 14 },
+    }
+    rerender()
+  end,
   details = function()
     ui.show_issue_details_popup(mock_issue)
   end,
@@ -145,6 +157,7 @@ function _G.JimScreenshot(view)
     jql       = { project = nil,    name = "JQL" },
     help      = { project = "ACME", name = "Help" },
     sort      = { project = "ACME", name = "Active Sprint", after = "sort" },
+    columns   = { project = "ACME", name = "Active Sprint", after = "columns" },
     details   = { project = "ACME", name = "Active Sprint", after = "details" },
     create    = { project = "ACME", name = "Active Sprint", after = "create" },
   }

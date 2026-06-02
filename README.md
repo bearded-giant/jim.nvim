@@ -127,7 +127,7 @@ require("jim").setup({
     { field = "key", header = "Key", width = 12 },
     { field = "summary", header = "Title", width = 60 },
     { field = "assignee", header = "Assignee", width = 12 },
-    { field = "time", header = "Time", width = 10 },
+    { field = "time", header = "Time", width = 16 },
     { field = "status", header = "Status", width = 14 },
   },
 })
@@ -308,7 +308,9 @@ Sorting applies to root-level issues only. Children stay grouped under their par
 
 Press `gc` to add or remove columns from the issue list at runtime. The picker shows available fields (Key, Title, Assignee, Time, Status, Priority, Reporter, Points, Type) with `[x]`/`[ ]` markers. Toggle fields on/off, then press `Esc` to apply.
 
-Column widths and defaults can also be set in `setup()` via the `columns` config. The column header row at the top of the issue list reflects the active configuration.
+Column widths and defaults can also be set in `setup()` via the `columns` config. Both the header row and the issue rows below it render from the active column set, in the order you configure -- so adding `priority` or `story_points` shows those values inline (priority is color-coded by level).
+
+![Configurable columns](screenshots/columns.png)
 
 ### Assigning Issues
 
