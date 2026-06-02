@@ -1079,7 +1079,6 @@ M.load_my_issues_view = function()
   ui.start_loading("Loading My Issues...")
 
   sprint.get_issues_by_jql(state.my_issues_projects[1], jql, function(issues, err)
-    print("My Issues callback - err: " .. tostring(err) .. ", issues: " .. tostring(issues and #issues or "nil"))
     if err then
       vim.schedule(function()
         ui.stop_loading()

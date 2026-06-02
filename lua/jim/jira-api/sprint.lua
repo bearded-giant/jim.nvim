@@ -149,8 +149,21 @@ function M.get_backlog_issues(project, filter, callback)
   fetch_issues_recursive(project, jql, callback)
 end
 
+-- A bare issue key (e.g. "REF-372") is not valid JQL on its own -- Jira reports
+-- "Expecting operator before the end of the query". Rewrite it to a key lookup
+-- so typing a key in the JQL box jumps straight to that issue.
+function M.normalize_jql(jql)
+  if not jql then return jql end
+  local trimmed = vim.trim(jql)
+  if trimmed:match("^%a[%a%d]*%-%d+$") then
+    return string.format("key = %s", trimmed:upper())
+  end
+  return jql
+end
+
 -- Get issues by custom JQL (project is optional for raw JQL queries)
 function M.get_issues_by_jql(project, jql, callback)
+  jql = M.normalize_jql(jql)
   if not jql or jql == "" then
     if callback then callback(nil, "JQL is required") end
     return
