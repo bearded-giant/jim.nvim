@@ -69,6 +69,8 @@ M.toggle_all_nodes = function()
   api.nvim_win_set_cursor(state.win, cursor)
 end
 
+local refresh_current_view
+
 local function get_cache_key(project_key, view_name)
   if view_name == "My Issues" then
     local sorted = vim.tbl_map(function(p) return p end, state.my_issues_projects)
@@ -136,7 +138,6 @@ M.setup_keymaps = function()
 
   -- Tab switching
   local function pick_project_for_view(view_name)
-    local projects = state.my_issues_projects or {}
     local default = state.project_key or ""
 
     vim.ui.input({
@@ -358,9 +359,9 @@ M.prompt_jql = function(default_query)
   local default = default_query or state.custom_jql or ""
   local height = math.max(12, math.floor(vim.o.lines * 0.4))
   local width = math.max(80, math.floor(vim.o.columns * 0.7))
-  ui.open_text_input("JQL", { default = default, height = height, width = width }, function(input)
+  ui.open_text_input("JQL", { default = default, height = height, width = width, filetype = "sql" }, function(input)
     if not input or input == "" then return end
-    local jql = input:gsub("\n", " "):gsub("%s+", " ")
+    local jql = vim.trim(input)
     state.custom_jql = jql
     state.push_jql_history(jql)
     state.save()
@@ -385,8 +386,11 @@ M.prompt_jql_history = function()
     prompt = "JQL History:",
     format_item = function(item)
       if item == "[New Query]" then return "  New Query" end
-      if #item > 80 then return item:sub(1, 77) .. "..." end
-      return item
+      local first = item:match("[^\r\n]+") or item
+      local multiline = item:find("[\r\n]") ~= nil
+      local suffix = multiline and " ..." or ""
+      if #first > 76 then return first:sub(1, 73) .. "..." end
+      return first .. suffix
     end,
   }, function(choice)
     if not choice then return end
@@ -706,7 +710,7 @@ M.assign_user = function()
 end
 
 -- Helper to refresh current view after updates
-local function refresh_current_view()
+function refresh_current_view()
   local cache_key = get_cache_key(state.project_key, state.current_view)
   state.cache[cache_key] = nil
   if state.current_view == "My Issues" then
@@ -722,7 +726,7 @@ M._edit_summary = function(node)
 
     local jira_api = require("jim.jira-api.api")
     ui.start_loading("Updating summary...")
-    jira_api.update_issue(node.key, { summary = input }, function(success, err)
+    jira_api.update_issue(node.key, { summary = input }, function(_, err)
       vim.schedule(function()
         ui.stop_loading()
         if err then
@@ -755,7 +759,7 @@ M._append_description = function(node)
         local current_adf = issue.fields and issue.fields.description
         local new_adf = jira_api.append_to_adf(current_adf, input)
 
-        jira_api.update_issue(node.key, { description = new_adf }, function(success, u_err)
+        jira_api.update_issue(node.key, { description = new_adf }, function(_, u_err)
           vim.schedule(function()
             ui.stop_loading()
             if u_err then
@@ -833,7 +837,7 @@ M.change_status = function()
         if not choice then return end
 
         ui.start_loading("Transitioning...")
-        jira_api.transition_issue(node.key, choice.id, function(success, t_err)
+        jira_api.transition_issue(node.key, choice.id, function(_, t_err)
           vim.schedule(function()
             ui.stop_loading()
             if t_err then
@@ -891,7 +895,7 @@ M.close_issue = function()
       end
 
       ui.start_loading("Closing issue...")
-      jira_api.transition_issue(node.key, done_transition.id, function(success, t_err)
+      jira_api.transition_issue(node.key, done_transition.id, function(_, t_err)
         vim.schedule(function()
           ui.stop_loading()
           if t_err then

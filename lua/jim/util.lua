@@ -67,8 +67,6 @@ M.format_time = function(seconds)
   return string.format("%.1f", hours)
 end
 
----@param node table
----@return string
 local html_entities = {
   ["&amp;"] = "&", ["&lt;"] = "<", ["&gt;"] = ">",
   ["&quot;"] = '"', ["&#39;"] = "'", ["&apos;"] = "'",
@@ -76,7 +74,7 @@ local html_entities = {
 }
 
 local function decode_entities(str)
-  return (str:gsub("&%w+;", html_entities):gsub("&#(%d+);", function(n) return string.char(tonumber(n)) end))
+  return (str:gsub("&%w+;", html_entities):gsub("&#(%d+);", function(n) return string.char(tonumber(n) or 0) end))
 end
 
 local function parse_adf(node)

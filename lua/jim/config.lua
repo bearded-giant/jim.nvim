@@ -7,13 +7,20 @@ local FALLBACKS = {
 
 ---@class JiraConfig
 ---@field jira JiraAuthOptions
----@field projects? table<string, table> Project-specific overrides
+---@field projects table<string, table> Project-specific overrides
+---@field keymaps table<string, string|string[]> Keymap overrides
+---@field columns JiraColumn[] Column config for issue list
 
 ---@class JiraAuthOptions
 ---@field base string URL of your Jira instance (e.g. https://your-domain.atlassian.net)
 ---@field email string Your Jira email
 ---@field token string Your Jira API token
 ---@field limit? number Global limit of tasks when calling API
+
+---@class JiraColumn
+---@field field string
+---@field header string
+---@field width number
 
 ---@type JiraConfig
 M.defaults = {
@@ -68,7 +75,7 @@ M.defaults = {
 ---@type JiraConfig
 M.options = vim.deepcopy(M.defaults)
 
----@param opts JiraConfig
+---@param opts table partial JiraConfig overrides
 function M.setup(opts)
   M.options = vim.tbl_deep_extend("force", M.defaults, opts or {})
 end
